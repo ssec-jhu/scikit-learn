@@ -155,6 +155,8 @@ cdef class Splitter(BaseSplitter):
         float64_t min_weight_leaf,
         object random_state,
         const cnp.int8_t[:] monotonic_cst,
+        SplitCondition[:] pre_split_conditions=[],
+        SplitCondition[:] post_split_conditions=[],
         *argv
     ):
         """
@@ -194,6 +196,9 @@ cdef class Splitter(BaseSplitter):
         self.random_state = random_state
         self.monotonic_cst = monotonic_cst
         self.with_monotonic_cst = monotonic_cst is not None
+
+        self.pre_split_conditions = pre_split_conditions
+        self.post_split_conditions = post_split_conditions
 
     def __reduce__(self):
         return (type(self), (self.criterion,

@@ -19,6 +19,8 @@ from ._utils cimport UINT32_t
 from ._criterion cimport BaseCriterion, Criterion
 
 
+ctypedef bint (*SplitCondition)(Splitter*)
+
 cdef struct SplitRecord:
     # Data to track sample split
     intp_t feature         # Which feature to split on.
@@ -111,6 +113,9 @@ cdef class Splitter(BaseSplitter):
     #   +1: monotonic increase
     cdef const cnp.int8_t[:] monotonic_cst
     cdef bint with_monotonic_cst
+
+    cdef SplitCondition[:] pre_split_conditions
+    cdef SplitCondition[:] post_split_conditions
 
     cdef int init(
         self,
