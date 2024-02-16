@@ -114,8 +114,8 @@ cdef class Splitter(BaseSplitter):
     cdef const cnp.int8_t[:] monotonic_cst
     cdef bint with_monotonic_cst
 
-    cdef SplitCondition[:] pre_split_conditions
-    cdef SplitCondition[:] post_split_conditions
+    cdef SplitCondition[] pre_split_conditions
+    cdef SplitCondition[] post_split_conditions
 
     cdef int init(
         self,

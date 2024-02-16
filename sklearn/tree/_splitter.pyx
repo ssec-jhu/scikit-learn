@@ -155,8 +155,8 @@ cdef class Splitter(BaseSplitter):
         float64_t min_weight_leaf,
         object random_state,
         const cnp.int8_t[:] monotonic_cst,
-        SplitCondition[:] pre_split_conditions=[],
-        SplitCondition[:] post_split_conditions=[],
+        SplitCondition[] pre_split_conditions=[],
+        SplitCondition[] post_split_conditions=[],
         *argv
     ):
         """
