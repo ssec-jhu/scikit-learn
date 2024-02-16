@@ -19,7 +19,7 @@ from ._utils cimport UINT32_t
 from ._criterion cimport BaseCriterion, Criterion
 
 
-ctypedef bint (*SplitCondition)(Splitter*)
+ctypedef bint (*SplitCondition)(Splitter splitter)
 
 cdef struct SplitRecord:
     # Data to track sample split
