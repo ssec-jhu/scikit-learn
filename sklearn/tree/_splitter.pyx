@@ -44,9 +44,7 @@ cdef float32_t FEATURE_THRESHOLD = 1e-7
 cdef float32_t EXTRACT_NNZ_SWITCH = 0.1
 
 cdef bint condition1(Splitter splitter) noexcept nogil:
-    cdef bint bar = splitter.n_samples > 0
-
-    return 1
+    return splitter.n_samples > 0
 
 cdef class SplitConditions:
     def __init__(self, n):
@@ -58,7 +56,7 @@ def foo():
     presplit_conditions.value[1] = condition1
 
     postsplit_conditions = SplitConditions(1)
-    postsplit_conditions = condition1
+    postsplit_conditions.value[0] = condition1
 
 cdef inline void _init_split(SplitRecord* self, intp_t start_pos) noexcept nogil:
     self.impurity_left = INFINITY
