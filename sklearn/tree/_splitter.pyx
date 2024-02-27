@@ -43,6 +43,23 @@ cdef float32_t FEATURE_THRESHOLD = 1e-7
 # in SparsePartitioner
 cdef float32_t EXTRACT_NNZ_SWITCH = 0.1
 
+cdef bint condition1(Splitter splitter) noexcept nogil:
+    cdef bint bar = splitter.n_samples > 0
+
+    return 1
+
+cdef class SplitConditions:
+    def __init__(self, n):
+        self.value.resize(n)
+
+def foo():
+    presplit_conditions = SplitConditions(2)
+    presplit_conditions.value[0] = condition1
+    presplit_conditions.value[1] = condition1
+
+    postsplit_conditions = SplitConditions(1)
+    postsplit_conditions = condition1
+
 cdef inline void _init_split(SplitRecord* self, intp_t start_pos) noexcept nogil:
     self.impurity_left = INFINITY
     self.impurity_right = INFINITY
@@ -155,6 +172,8 @@ cdef class Splitter(BaseSplitter):
         float64_t min_weight_leaf,
         object random_state,
         const cnp.int8_t[:] monotonic_cst,
+        SplitConditions presplit_conditions=None,
+        SplitConditions postsplit_conditions=None,
         *argv
     ):
         """
@@ -194,6 +213,9 @@ cdef class Splitter(BaseSplitter):
         self.random_state = random_state
         self.monotonic_cst = monotonic_cst
         self.with_monotonic_cst = monotonic_cst is not None
+
+        self.presplit_conditions = presplit_conditions
+        self.postsplit_conditions = postsplit_conditions
 
     def __reduce__(self):
         return (type(self), (self.criterion,
@@ -602,6 +624,11 @@ cdef inline intp_t node_split_best(
                     n_right = end_non_missing - current_split.pos + n_missing
                 if splitter.check_presplit_conditions(&current_split, n_missing, missing_go_to_left) == 1:
                     continue
+                
+                if splitter.presplit_conditions is not None:
+                    for condition in splitter.presplit_conditions.value:
+                        if condition(splitter):
+                            continue
 
                 criterion.update(current_split.pos)
 
@@ -620,6 +647,11 @@ cdef inline intp_t node_split_best(
                 # Reject if min_weight_leaf is not satisfied
                 if splitter.check_postsplit_conditions() == 1:
                     continue
+                
+                if splitter.postsplit_conditions is not None:
+                    for condition in splitter.postsplit_conditions.value:
+                        if condition(splitter):
+                            continue
 
                 current_proxy_improvement = criterion.proxy_impurity_improvement()
 

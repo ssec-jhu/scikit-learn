@@ -19,7 +19,11 @@ from ._utils cimport UINT32_t
 from ._criterion cimport BaseCriterion, Criterion
 
 
-ctypedef bint (*SplitCondition)(Splitter splitter)
+ctypedef bint (*SplitCondition)(Splitter splitter) noexcept nogil
+
+cdef class SplitConditions:
+    cdef vector[SplitCondition] value
+
 
 cdef struct SplitRecord:
     # Data to track sample split
@@ -113,6 +117,9 @@ cdef class Splitter(BaseSplitter):
     #   +1: monotonic increase
     cdef const cnp.int8_t[:] monotonic_cst
     cdef bint with_monotonic_cst
+
+    cdef public SplitConditions presplit_conditions
+    cdef public SplitConditions postsplit_conditions
 
     cdef int init(
         self,
