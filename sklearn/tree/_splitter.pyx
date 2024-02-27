@@ -46,17 +46,17 @@ cdef float32_t EXTRACT_NNZ_SWITCH = 0.1
 cdef bint condition1(Splitter splitter) noexcept nogil:
     return splitter.n_samples > 0
 
-cdef class SplitConditions:
-    def __init__(self, n):
-        self.value.resize(n)
+cdef bint condition2(Splitter splitter) noexcept nogil:
+    return splitter.n_samples < 10
 
 def foo():
-    presplit_conditions = SplitConditions(2)
-    presplit_conditions.value[0] = condition1
-    presplit_conditions.value[1] = condition1
+    splitter = Splitter()
 
-    postsplit_conditions = SplitConditions(1)
-    postsplit_conditions.value[0] = condition1
+    splitter.presplit_conditions.push_back(condition1)
+    splitter.presplit_conditions.push_back(condition2)
+
+    splitter.postsplit_conditions.push_back(condition1)
+
 
 cdef inline void _init_split(SplitRecord* self, intp_t start_pos) noexcept nogil:
     self.impurity_left = INFINITY
@@ -170,8 +170,6 @@ cdef class Splitter(BaseSplitter):
         float64_t min_weight_leaf,
         object random_state,
         const cnp.int8_t[:] monotonic_cst,
-        SplitConditions presplit_conditions=None,
-        SplitConditions postsplit_conditions=None,
         *argv
     ):
         """
@@ -212,8 +210,6 @@ cdef class Splitter(BaseSplitter):
         self.monotonic_cst = monotonic_cst
         self.with_monotonic_cst = monotonic_cst is not None
 
-        self.presplit_conditions = presplit_conditions
-        self.postsplit_conditions = postsplit_conditions
 
     def __reduce__(self):
         return (type(self), (self.criterion,
@@ -623,10 +619,9 @@ cdef inline intp_t node_split_best(
                 if splitter.check_presplit_conditions(&current_split, n_missing, missing_go_to_left) == 1:
                     continue
                 
-                if splitter.presplit_conditions is not None:
-                    for condition in splitter.presplit_conditions.value:
-                        if condition(splitter):
-                            continue
+                for condition in splitter.presplit_conditions:
+                    if condition(splitter):
+                        continue
 
                 criterion.update(current_split.pos)
 
@@ -646,10 +641,9 @@ cdef inline intp_t node_split_best(
                 if splitter.check_postsplit_conditions() == 1:
                     continue
                 
-                if splitter.postsplit_conditions is not None:
-                    for condition in splitter.postsplit_conditions.value:
-                        if condition(splitter):
-                            continue
+                for condition in splitter.postsplit_conditions:
+                    if condition(splitter):
+                        continue
 
                 current_proxy_improvement = criterion.proxy_impurity_improvement()
 
