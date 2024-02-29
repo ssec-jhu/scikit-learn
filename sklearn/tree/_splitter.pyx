@@ -19,7 +19,7 @@
 
 from cython cimport final
 from libc.math cimport isnan
-from libc.stdlib cimport qsort, malloc, free
+from libc.stdlib cimport qsort, free
 from libc.string cimport memcpy
 cimport numpy as cnp
 
@@ -45,18 +45,17 @@ cdef float32_t EXTRACT_NNZ_SWITCH = 0.1
 
 from ._tree cimport Tree
 cdef class FooTree(Tree):
+    cdef Splitter splitter
     cdef Condition1Parameters* c1p
     cdef DummyParameters* dummy_params
 
     def __init__(self):
-        splitter = Splitter()
-        self.c1p = <Condition1Parameters*>malloc(sizeof(Condition1Parameters))
-        self.c1p.some_number = 5
+        self.c1p = create_condition1_parameters(5)
+        self.dummy_params = create_dummy_parameters(0)
 
-        self.dummy_params = <DummyParameters*>malloc(sizeof(DummyParameters))
-
-        splitter.presplit_conditions.push_back(SplitConditionTuple(condition1, self.c1p))
-        splitter.presplit_conditions.push_back(SplitConditionTuple(condition2, self.dummy_params))
+        self.splitter = Splitter()
+        self.splitter.presplit_conditions.push_back(SplitConditionTuple(condition1, self.c1p))
+        self.splitter.presplit_conditions.push_back(SplitConditionTuple(condition2, self.dummy_params))
     
     def __dealloc__(self):
         if self.c1p is not NULL:

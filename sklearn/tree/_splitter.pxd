@@ -13,6 +13,7 @@
 cimport numpy as cnp
 
 from libcpp.vector cimport vector
+from libc.stdlib cimport malloc
 
 from ..utils._typedefs cimport float32_t, float64_t, intp_t, int32_t
 from ._utils cimport UINT32_t
@@ -20,7 +21,7 @@ from ._criterion cimport BaseCriterion, Criterion
 
 
 ctypedef void *SplitConditionParameters
-ctypedef bint (*SplitCondition)(Splitter splitter, void* split_condition_parameters) noexcept nogil
+ctypedef bint (*SplitCondition)(Splitter splitter, SplitConditionParameters split_condition_parameters) noexcept nogil
 
 cdef struct SplitConditionTuple:
     SplitCondition f
@@ -29,15 +30,29 @@ cdef struct SplitConditionTuple:
 cdef struct DummyParameters:
     int dummy
 
+cdef inline DummyParameters* create_dummy_parameters(int dummy):
+    cdef DummyParameters* result = <DummyParameters*>malloc(sizeof(DummyParameters))
+    if result == NULL:
+        return NULL
+    result.dummy = dummy
+    return result
+
 cdef struct Condition1Parameters:
     int some_number
 
-cdef inline bint condition1(Splitter splitter, void* split_condition_parameters) noexcept nogil:
+cdef inline Condition1Parameters* create_condition1_parameters(int some_number):
+    cdef Condition1Parameters* result = <Condition1Parameters*>malloc(sizeof(Condition1Parameters))
+    if result == NULL:
+        return NULL
+    result.some_number = some_number
+    return result
+
+cdef inline bint condition1(Splitter splitter, SplitConditionParameters split_condition_parameters) noexcept nogil:
     cdef Condition1Parameters* p = <Condition1Parameters*>split_condition_parameters
 
     return splitter.n_samples > 0 and p.some_number < 1000
 
-cdef inline bint condition2(Splitter splitter, void* split_condition_parameters) noexcept nogil:
+cdef inline bint condition2(Splitter splitter, SplitConditionParameters split_condition_parameters) noexcept nogil:
     return splitter.n_samples < 10
 
 
