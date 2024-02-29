@@ -19,7 +19,26 @@ from ._utils cimport UINT32_t
 from ._criterion cimport BaseCriterion, Criterion
 
 
-ctypedef bint (*SplitCondition)(Splitter splitter) noexcept nogil
+ctypedef void *SplitConditionParameters
+ctypedef bint (*SplitCondition)(Splitter splitter, void* split_condition_parameters) noexcept nogil
+
+cdef struct SplitConditionTuple:
+    SplitCondition f
+    SplitConditionParameters p
+
+cdef struct DummyParameters:
+    int dummy
+
+cdef struct Condition1Parameters:
+    int some_number
+
+cdef inline bint condition1(Splitter splitter, void* split_condition_parameters) noexcept nogil:
+    cdef Condition1Parameters* p = <Condition1Parameters*>split_condition_parameters
+
+    return splitter.n_samples > 0 and p.some_number < 1000
+
+cdef inline bint condition2(Splitter splitter, void* split_condition_parameters) noexcept nogil:
+    return splitter.n_samples < 10
 
 
 cdef struct SplitRecord:
@@ -115,8 +134,8 @@ cdef class Splitter(BaseSplitter):
     cdef const cnp.int8_t[:] monotonic_cst
     cdef bint with_monotonic_cst
 
-    cdef vector[SplitCondition] presplit_conditions
-    cdef vector[SplitCondition] postsplit_conditions
+    cdef vector[SplitConditionTuple] presplit_conditions
+    cdef vector[SplitConditionTuple] postsplit_conditions
 
     cdef int init(
         self,

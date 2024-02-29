@@ -19,7 +19,7 @@
 
 from cython cimport final
 from libc.math cimport isnan
-from libc.stdlib cimport qsort
+from libc.stdlib cimport qsort, malloc, free
 from libc.string cimport memcpy
 cimport numpy as cnp
 
@@ -43,19 +43,26 @@ cdef float32_t FEATURE_THRESHOLD = 1e-7
 # in SparsePartitioner
 cdef float32_t EXTRACT_NNZ_SWITCH = 0.1
 
-cdef bint condition1(Splitter splitter) noexcept nogil:
-    return splitter.n_samples > 0
+from ._tree cimport Tree
+cdef class FooTree(Tree):
+    cdef Condition1Parameters* c1p
+    cdef DummyParameters* dummy_params
 
-cdef bint condition2(Splitter splitter) noexcept nogil:
-    return splitter.n_samples < 10
+    def __init__(self):
+        splitter = Splitter()
+        self.c1p = <Condition1Parameters*>malloc(sizeof(Condition1Parameters))
+        self.c1p.some_number = 5
 
-def foo():
-    splitter = Splitter()
+        self.dummy_params = <DummyParameters*>malloc(sizeof(DummyParameters))
 
-    splitter.presplit_conditions.push_back(condition1)
-    splitter.presplit_conditions.push_back(condition2)
-
-    splitter.postsplit_conditions.push_back(condition1)
+        splitter.presplit_conditions.push_back(SplitConditionTuple(condition1, self.c1p))
+        splitter.presplit_conditions.push_back(SplitConditionTuple(condition2, self.dummy_params))
+    
+    def __dealloc__(self):
+        if self.c1p is not NULL:
+            free(self.c1p)
+        if self.dummy_params is not NULL:
+            free(self.dummy_params)
 
 
 cdef inline void _init_split(SplitRecord* self, intp_t start_pos) noexcept nogil:
@@ -620,7 +627,7 @@ cdef inline intp_t node_split_best(
                     continue
                 
                 for condition in splitter.presplit_conditions:
-                    if condition(splitter):
+                    if not condition.f(splitter, condition.p):
                         continue
 
                 criterion.update(current_split.pos)
@@ -642,7 +649,7 @@ cdef inline intp_t node_split_best(
                     continue
                 
                 for condition in splitter.postsplit_conditions:
-                    if condition(splitter):
+                    if not condition.f(splitter, condition.p):
                         continue
 
                 current_proxy_improvement = criterion.proxy_impurity_improvement()
