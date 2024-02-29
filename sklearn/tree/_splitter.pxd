@@ -27,33 +27,23 @@ cdef struct SplitConditionTuple:
     SplitCondition f
     SplitConditionParameters p
 
-cdef struct DummyParameters:
-    int dummy
-
-cdef inline DummyParameters* create_dummy_parameters(int dummy):
-    cdef DummyParameters* result = <DummyParameters*>malloc(sizeof(DummyParameters))
-    if result == NULL:
-        return NULL
-    result.dummy = dummy
-    return result
-
-cdef struct Condition1Parameters:
-    int some_number
-
-cdef inline Condition1Parameters* create_condition1_parameters(int some_number):
-    cdef Condition1Parameters* result = <Condition1Parameters*>malloc(sizeof(Condition1Parameters))
-    if result == NULL:
-        return NULL
-    result.some_number = some_number
-    return result
-
-cdef inline bint condition1(Splitter splitter, SplitConditionParameters split_condition_parameters) noexcept nogil:
-    cdef Condition1Parameters* p = <Condition1Parameters*>split_condition_parameters
-
-    return splitter.n_samples > 0 and p.some_number < 1000
-
-cdef inline bint condition2(Splitter splitter, SplitConditionParameters split_condition_parameters) noexcept nogil:
+cdef inline bint has_data_condition(Splitter splitter, SplitConditionParameters split_condition_parameters) noexcept nogil:
     return splitter.n_samples < 10
+
+cdef struct AlphaRegularityParameters:
+    float64_t alpha
+
+cdef inline AlphaRegularityParameters* create_alpha_regularity_parameters(float64_t alpha):
+    cdef AlphaRegularityParameters* result = <AlphaRegularityParameters*>malloc(sizeof(AlphaRegularityParameters))
+    if result == NULL:
+        return NULL
+    result.alpha = alpha
+    return result
+
+cdef inline bint alpha_regularity_condition(Splitter splitter, SplitConditionParameters split_condition_parameters) noexcept nogil:
+    cdef AlphaRegularityParameters* p = <AlphaRegularityParameters*>split_condition_parameters
+
+    return 1
 
 
 cdef struct SplitRecord:

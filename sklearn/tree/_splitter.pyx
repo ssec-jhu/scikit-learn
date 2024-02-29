@@ -46,22 +46,18 @@ cdef float32_t EXTRACT_NNZ_SWITCH = 0.1
 from ._tree cimport Tree
 cdef class FooTree(Tree):
     cdef Splitter splitter
-    cdef Condition1Parameters* c1p
-    cdef DummyParameters* dummy_params
+    cdef AlphaRegularityParameters* p_alpha
 
     def __init__(self):
-        self.c1p = create_condition1_parameters(5)
-        self.dummy_params = create_dummy_parameters(0)
+        self.p_alpha = create_alpha_regularity_parameters(0.2)
 
         self.splitter = Splitter()
-        self.splitter.presplit_conditions.push_back(SplitConditionTuple(condition1, self.c1p))
-        self.splitter.presplit_conditions.push_back(SplitConditionTuple(condition2, self.dummy_params))
+        self.splitter.presplit_conditions.push_back(SplitConditionTuple(alpha_regularity_condition, self.p_alpha))
+        self.splitter.presplit_conditions.push_back(SplitConditionTuple(has_data_condition, NULL))
     
     def __dealloc__(self):
-        if self.c1p is not NULL:
-            free(self.c1p)
-        if self.dummy_params is not NULL:
-            free(self.dummy_params)
+        if self.p_alpha is not NULL:
+            free(self.p_alpha)
 
 
 cdef inline void _init_split(SplitRecord* self, intp_t start_pos) noexcept nogil:
