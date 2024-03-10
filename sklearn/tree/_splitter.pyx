@@ -43,21 +43,56 @@ cdef float32_t FEATURE_THRESHOLD = 1e-7
 # in SparsePartitioner
 cdef float32_t EXTRACT_NNZ_SWITCH = 0.1
 
+
+cdef struct HasDataParameters:
+    int min_samples
+
+cdef bint has_data_condition(Splitter splitter, SplitConditionParameters split_condition_parameters) noexcept nogil:
+    cdef HasDataParameters* p = <HasDataParameters*>split_condition_parameters
+    return splitter.n_samples >= p.min_samples
+
+cdef class HasDataCondition(SplitCondition):
+    def __cinit__(self, int min_samples):
+        self.t.f = has_data_condition
+        self.t.p = malloc(sizeof(HasDataParameters))
+        (<HasDataParameters*>self.t.p).min_samples = min_samples
+    
+    def __dealloc__(self):
+        if self.t.p is not NULL:
+            free(self.t.p)
+        
+        super.__dealloc__(self)
+
+cdef struct AlphaRegularityParameters:
+    float64_t alpha
+
+cdef bint alpha_regularity_condition(Splitter splitter, SplitConditionParameters split_condition_parameters) noexcept nogil:
+    cdef AlphaRegularityParameters* p = <AlphaRegularityParameters*>split_condition_parameters
+
+    return 1
+
+cdef class AlphaRegularityCondition(SplitCondition):
+    def __cinit__(self, float64_t alpha):
+        self.t.f = alpha_regularity_condition
+        self.t.p = malloc(sizeof(AlphaRegularityParameters))
+        (<AlphaRegularityParameters*>self.t.p).alpha = alpha
+    
+    def __dealloc__(self):
+        if self.t.p is not NULL:
+            free(self.t.p)
+        
+        super.__dealloc__(self)
+
+
 from ._tree cimport Tree
 cdef class FooTree(Tree):
     cdef Splitter splitter
-    cdef AlphaRegularityParameters* p_alpha
 
     def __init__(self):
-        self.p_alpha = create_alpha_regularity_parameters(0.2)
-
-        self.splitter = Splitter()
-        self.splitter.presplit_conditions.push_back(SplitConditionTuple(alpha_regularity_condition, self.p_alpha))
-        self.splitter.presplit_conditions.push_back(SplitConditionTuple(has_data_condition, NULL))
-    
-    def __dealloc__(self):
-        if self.p_alpha is not NULL:
-            free(self.p_alpha)
+        self.splitter = Splitter(
+            presplit_conditions = [HasDataCondition(10)],
+            postsplit_conditions = [AlphaRegularityCondition(0.1)],
+        )
 
 
 cdef inline void _init_split(SplitRecord* self, intp_t start_pos) noexcept nogil:
@@ -172,6 +207,8 @@ cdef class Splitter(BaseSplitter):
         float64_t min_weight_leaf,
         object random_state,
         const cnp.int8_t[:] monotonic_cst,
+        SplitCondition[:] presplit_conditions,
+        SplitCondition[:] postsplit_conditions,
         *argv
     ):
         """
@@ -211,6 +248,14 @@ cdef class Splitter(BaseSplitter):
         self.random_state = random_state
         self.monotonic_cst = monotonic_cst
         self.with_monotonic_cst = monotonic_cst is not None
+
+        if presplit_conditions is not None:
+            for condition in presplit_conditions:
+                self.presplit_conditions.push_back((<SplitCondition>condition).t)
+        
+        if postsplit_conditions is not None:
+            for condition in postsplit_conditions:
+                self.postsplit_conditions.push_back((<SplitCondition>condition).t)
 
 
     def __reduce__(self):
@@ -618,13 +663,14 @@ cdef inline intp_t node_split_best(
                 else:
                     n_left = current_split.pos - splitter.start
                     n_right = end_non_missing - current_split.pos + n_missing
-                if splitter.check_presplit_conditions(&current_split, n_missing, missing_go_to_left) == 1:
-                    continue
-                
+
                 for condition in splitter.presplit_conditions:
                     if not condition.f(splitter, condition.p):
                         continue
 
+                if splitter.check_presplit_conditions(&current_split, n_missing, missing_go_to_left) == 1:
+                    continue
+                
                 criterion.update(current_split.pos)
 
                 # Reject if monotonicity constraints are not satisfied
@@ -639,14 +685,14 @@ cdef inline intp_t node_split_best(
                 ):
                     continue
 
-                # Reject if min_weight_leaf is not satisfied
-                if splitter.check_postsplit_conditions() == 1:
-                    continue
-                
                 for condition in splitter.postsplit_conditions:
                     if not condition.f(splitter, condition.p):
                         continue
 
+                # Reject if min_weight_leaf is not satisfied
+                if splitter.check_postsplit_conditions() == 1:
+                    continue
+                
                 current_proxy_improvement = criterion.proxy_impurity_improvement()
 
                 if current_proxy_improvement > best_proxy_improvement:

@@ -20,30 +20,15 @@ from ._utils cimport UINT32_t
 from ._criterion cimport BaseCriterion, Criterion
 
 
-ctypedef void *SplitConditionParameters
-ctypedef bint (*SplitCondition)(Splitter splitter, SplitConditionParameters split_condition_parameters) noexcept nogil
+ctypedef void* SplitConditionParameters
+ctypedef bint (*SplitConditionFunction)(Splitter splitter, SplitConditionParameters split_condition_parameters) noexcept nogil
 
 cdef struct SplitConditionTuple:
-    SplitCondition f
+    SplitConditionFunction f
     SplitConditionParameters p
 
-cdef inline bint has_data_condition(Splitter splitter, SplitConditionParameters split_condition_parameters) noexcept nogil:
-    return splitter.n_samples < 10
-
-cdef struct AlphaRegularityParameters:
-    float64_t alpha
-
-cdef inline AlphaRegularityParameters* create_alpha_regularity_parameters(float64_t alpha):
-    cdef AlphaRegularityParameters* result = <AlphaRegularityParameters*>malloc(sizeof(AlphaRegularityParameters))
-    if result == NULL:
-        return NULL
-    result.alpha = alpha
-    return result
-
-cdef inline bint alpha_regularity_condition(Splitter splitter, SplitConditionParameters split_condition_parameters) noexcept nogil:
-    cdef AlphaRegularityParameters* p = <AlphaRegularityParameters*>split_condition_parameters
-
-    return 1
+cdef class SplitCondition:
+    cdef SplitConditionTuple t
 
 
 cdef struct SplitRecord:
