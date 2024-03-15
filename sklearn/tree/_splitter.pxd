@@ -6,6 +6,7 @@
 #          Jacob Schreiber <jmschreiber91@gmail.com>
 #          Adam Li <adam2392@gmail.com>
 #          Jong Shin <jshinm@gmail.com>
+#          Samuel Carliles <scarlil1@jhu.edu>
 #
 # License: BSD 3 clause
 
@@ -20,8 +21,27 @@ from ._utils cimport UINT32_t
 from ._criterion cimport BaseCriterion, Criterion
 
 
+# NICE IDEAS THAT DON'T APPEAR POSSIBLE
+# - accessing elements of a memory view of cython extension types in a nogil block/function
+# - storing cython extension types in cpp vectors
+#
+# despite the fact that we can access scalar extension type properties in such a context,
+# as for instance node_split_best does with Criterion and Partition,
+# and we can access the elements of a memory view of primitive types in such a context
+#
+# SO WHERE DOES THAT LEAVE US
+# - we can transform these into cpp vectors of structs
+#   and with some minor casting irritations everything else works ok
 ctypedef void* SplitConditionParameters
-ctypedef bint (*SplitConditionFunction)(Splitter splitter, SplitConditionParameters split_condition_parameters) noexcept nogil
+ctypedef bint (*SplitConditionFunction)(
+    Splitter splitter,
+    SplitRecord* current_split,
+    intp_t n_missing,
+    bint missing_go_to_left,
+    float64_t lower_bound,
+    float64_t upper_bound,
+    SplitConditionParameters split_condition_parameters
+) noexcept nogil
 
 cdef struct SplitConditionTuple:
     SplitConditionFunction f

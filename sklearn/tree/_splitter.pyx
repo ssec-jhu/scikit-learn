@@ -44,10 +44,99 @@ cdef float32_t FEATURE_THRESHOLD = 1e-7
 cdef float32_t EXTRACT_NNZ_SWITCH = 0.1
 
 
+cdef bint min_sample_leaf_condition(
+    Splitter splitter,
+    SplitRecord* current_split,
+    intp_t n_missing,
+    bint missing_go_to_left,
+    float64_t lower_bound,
+    float64_t upper_bound,
+    SplitConditionParameters split_condition_parameters
+) noexcept nogil:
+    cdef intp_t min_samples_leaf = splitter.min_samples_leaf
+    cdef intp_t end_non_missing = splitter.end - n_missing
+    cdef intp_t n_left, n_right
+
+    if missing_go_to_left:
+        n_left = current_split.pos - splitter.start + n_missing
+        n_right = end_non_missing - current_split.pos
+    else:
+        n_left = current_split.pos - splitter.start
+        n_right = end_non_missing - current_split.pos + n_missing
+
+    # Reject if min_samples_leaf is not guaranteed
+    if n_left < min_samples_leaf or n_right < min_samples_leaf:
+        return 0
+
+    return 1
+
+cdef class MinSamplesLeafCondition(SplitCondition):
+    def __cinit__(self):
+        self.t.f = min_sample_leaf_condition
+        self.t.p = NULL # min_samples is stored in splitter, which is already passed to f
+
+cdef bint min_weight_leaf_condition(
+    Splitter splitter,
+    SplitRecord* current_split,
+    intp_t n_missing,
+    bint missing_go_to_left,
+    float64_t lower_bound,
+    float64_t upper_bound,
+    SplitConditionParameters split_condition_parameters
+) noexcept nogil:
+    cdef float64_t min_weight_leaf = splitter.min_weight_leaf
+
+    # Reject if min_weight_leaf is not satisfied
+    if ((splitter.criterion.weighted_n_left < min_weight_leaf) or
+            (splitter.criterion.weighted_n_right < min_weight_leaf)):
+        return 0
+
+    return 1
+
+cdef class MinWeightLeafCondition(SplitCondition):
+    def __cinit__(self):
+        self.t.f = min_weight_leaf_condition
+        self.t.p = NULL # min_weight_leaf is stored in splitter, which is already passed to f
+
+cdef bint monotonic_constraint_condition(
+    Splitter splitter,
+    SplitRecord* current_split,
+    intp_t n_missing,
+    bint missing_go_to_left,
+    float64_t lower_bound,
+    float64_t upper_bound,
+    SplitConditionParameters split_condition_parameters
+) noexcept nogil:
+    if (
+        splitter.with_monotonic_cst and
+        splitter.monotonic_cst[current_split.feature] != 0 and
+        not splitter.criterion.check_monotonicity(
+            splitter.monotonic_cst[current_split.feature],
+            lower_bound,
+            upper_bound,
+        )
+    ):
+        return 0
+    
+    return 1
+
+cdef class MonotonicConstraintCondition(SplitCondition):
+    def __cinit__(self):
+        self.t.f = monotonic_constraint_condition
+        self.t.p = NULL
+
 cdef struct HasDataParameters:
     int min_samples
 
-cdef bint has_data_condition(Splitter splitter, SplitConditionParameters split_condition_parameters) noexcept nogil:
+cdef bint has_data_condition(
+    Splitter splitter,
+    SplitRecord* current_split,
+    intp_t n_missing,
+    bint missing_go_to_left,
+    float64_t lower_bound,
+    float64_t upper_bound,
+    SplitConditionParameters split_condition_parameters
+) noexcept nogil:
     cdef HasDataParameters* p = <HasDataParameters*>split_condition_parameters
     return splitter.n_samples >= p.min_samples
 
@@ -66,7 +155,15 @@ cdef class HasDataCondition(SplitCondition):
 cdef struct AlphaRegularityParameters:
     float64_t alpha
 
-cdef bint alpha_regularity_condition(Splitter splitter, SplitConditionParameters split_condition_parameters) noexcept nogil:
+cdef bint alpha_regularity_condition(
+    Splitter splitter,
+    SplitRecord* current_split,
+    intp_t n_missing,
+    bint missing_go_to_left,
+    float64_t lower_bound,
+    float64_t upper_bound,
+    SplitConditionParameters split_condition_parameters
+) noexcept nogil:
     cdef AlphaRegularityParameters* p = <AlphaRegularityParameters*>split_condition_parameters
 
     return 1
@@ -249,13 +346,23 @@ cdef class Splitter(BaseSplitter):
         self.monotonic_cst = monotonic_cst
         self.with_monotonic_cst = monotonic_cst is not None
 
+        self.min_samples_leaf_condition = MinSamplesLeafCondition()
+        self.min_weight_leaf_condition = MinWeightLeafCondition()
+
+        self.presplit_conditions.push_back((<SplitCondition>self.min_samples_leaf_condition).t)
         if presplit_conditions is not None:
             for condition in presplit_conditions:
                 self.presplit_conditions.push_back((<SplitCondition>condition).t)
         
+        self.postsplit_conditions.push_back((<SplitCondition>self.min_weight_leaf_condition).t)
         if postsplit_conditions is not None:
             for condition in postsplit_conditions:
                 self.postsplit_conditions.push_back((<SplitCondition>condition).t)
+
+        if(self.with_monotonic_cst):
+            self.monotonic_constraint_condition = MonotonicConstraintCondition()
+            self.presplit_conditions.push_back((<SplitCondition>self.monotonic_constraint_condition).t)
+            self.postsplit_conditions.push_back((<SplitCondition>self.monotonic_constraint_condition).t)
 
 
     def __reduce__(self):
@@ -644,54 +751,60 @@ cdef inline intp_t node_split_best(
 
                 current_split.pos = p
 
-                # Reject if monotonicity constraints are not satisfied
-                if (
-                    with_monotonic_cst and
-                    monotonic_cst[current_split.feature] != 0 and
-                    not criterion.check_monotonicity(
-                        monotonic_cst[current_split.feature],
-                        lower_bound,
-                        upper_bound,
-                    )
-                ):
-                    continue
+                # # Reject if monotonicity constraints are not satisfied
+                # if (
+                #     with_monotonic_cst and
+                #     monotonic_cst[current_split.feature] != 0 and
+                #     not criterion.check_monotonicity(
+                #         monotonic_cst[current_split.feature],
+                #         lower_bound,
+                #         upper_bound,
+                #     )
+                # ):
+                #     continue
 
-                # Reject if min_samples_leaf is not guaranteed
-                if missing_go_to_left:
-                    n_left = current_split.pos - splitter.start + n_missing
-                    n_right = end_non_missing - current_split.pos
-                else:
-                    n_left = current_split.pos - splitter.start
-                    n_right = end_non_missing - current_split.pos + n_missing
+                # # Reject if min_samples_leaf is not guaranteed
+                # if missing_go_to_left:
+                #     n_left = current_split.pos - splitter.start + n_missing
+                #     n_right = end_non_missing - current_split.pos
+                # else:
+                #     n_left = current_split.pos - splitter.start
+                #     n_right = end_non_missing - current_split.pos + n_missing
 
                 for condition in splitter.presplit_conditions:
-                    if not condition.f(splitter, condition.p):
+                    if not condition.f(
+                        splitter, &current_split, n_missing, missing_go_to_left,
+                        lower_bound, upper_bound, condition.p
+                    ):
                         continue
 
-                if splitter.check_presplit_conditions(&current_split, n_missing, missing_go_to_left) == 1:
-                    continue
+                # if splitter.check_presplit_conditions(&current_split, n_missing, missing_go_to_left) == 1:
+                #     continue
                 
                 criterion.update(current_split.pos)
 
-                # Reject if monotonicity constraints are not satisfied
-                if (
-                    with_monotonic_cst and
-                    monotonic_cst[current_split.feature] != 0 and
-                    not criterion.check_monotonicity(
-                        monotonic_cst[current_split.feature],
-                        lower_bound,
-                        upper_bound,
-                    )
-                ):
-                    continue
+                # # Reject if monotonicity constraints are not satisfied
+                # if (
+                #     with_monotonic_cst and
+                #     monotonic_cst[current_split.feature] != 0 and
+                #     not criterion.check_monotonicity(
+                #         monotonic_cst[current_split.feature],
+                #         lower_bound,
+                #         upper_bound,
+                #     )
+                # ):
+                #     continue
 
                 for condition in splitter.postsplit_conditions:
-                    if not condition.f(splitter, condition.p):
+                    if not condition.f(
+                        splitter, &current_split, n_missing, missing_go_to_left,
+                        lower_bound, upper_bound, condition.p
+                    ):
                         continue
 
-                # Reject if min_weight_leaf is not satisfied
-                if splitter.check_postsplit_conditions() == 1:
-                    continue
+                # # Reject if min_weight_leaf is not satisfied
+                # if splitter.check_postsplit_conditions() == 1:
+                #     continue
                 
                 current_proxy_improvement = criterion.proxy_impurity_improvement()
 
