@@ -50,6 +50,15 @@ cdef struct SplitConditionTuple:
 cdef class SplitCondition:
     cdef SplitConditionTuple t
 
+cdef class MinSamplesLeafCondition(SplitCondition):
+    pass
+
+cdef class MinWeightLeafCondition(SplitCondition):
+    pass
+
+cdef class MonotonicConstraintCondition(SplitCondition):
+    pass
+
 
 cdef struct SplitRecord:
     # Data to track sample split
