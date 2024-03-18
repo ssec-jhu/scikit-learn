@@ -66,9 +66,9 @@ cdef bint min_sample_leaf_condition(
 
     # Reject if min_samples_leaf is not guaranteed
     if n_left < min_samples_leaf or n_right < min_samples_leaf:
-        return 0
+        return False
 
-    return 1
+    return True
 
 cdef class MinSamplesLeafCondition(SplitCondition):
     def __cinit__(self):
@@ -89,9 +89,9 @@ cdef bint min_weight_leaf_condition(
     # Reject if min_weight_leaf is not satisfied
     if ((splitter.criterion.weighted_n_left < min_weight_leaf) or
             (splitter.criterion.weighted_n_right < min_weight_leaf)):
-        return 0
+        return False
 
-    return 1
+    return True
 
 cdef class MinWeightLeafCondition(SplitCondition):
     def __cinit__(self):
@@ -116,9 +116,9 @@ cdef bint monotonic_constraint_condition(
             upper_bound,
         )
     ):
-        return 0
+        return False
     
-    return 1
+    return True
 
 cdef class MonotonicConstraintCondition(SplitCondition):
     def __cinit__(self):
@@ -166,7 +166,7 @@ cdef bint alpha_regularity_condition(
 ) noexcept nogil:
     cdef AlphaRegularityParameters* p = <AlphaRegularityParameters*>split_condition_parameters
 
-    return 1
+    return True
 
 cdef class AlphaRegularityCondition(SplitCondition):
     def __cinit__(self, float64_t alpha):
@@ -304,8 +304,8 @@ cdef class Splitter(BaseSplitter):
         float64_t min_weight_leaf,
         object random_state,
         const cnp.int8_t[:] monotonic_cst,
-        SplitCondition[:] presplit_conditions,
-        SplitCondition[:] postsplit_conditions,
+        SplitCondition[:] presplit_conditions = None,
+        SplitCondition[:] postsplit_conditions = None,
         *argv
     ):
         """
@@ -657,6 +657,8 @@ cdef inline intp_t node_split_best(
     # n_total_constants = n_known_constants + n_found_constants
     cdef intp_t n_total_constants = n_known_constants
 
+    cdef bint conditions_hold = True
+
     _init_split(&best_split, end)
 
     partitioner.init_node_split(start, end)
@@ -771,12 +773,17 @@ cdef inline intp_t node_split_best(
                 #     n_left = current_split.pos - splitter.start
                 #     n_right = end_non_missing - current_split.pos + n_missing
 
+                conditions_hold = True
                 for condition in splitter.presplit_conditions:
                     if not condition.f(
                         splitter, &current_split, n_missing, missing_go_to_left,
                         lower_bound, upper_bound, condition.p
                     ):
-                        continue
+                        conditions_hold = False
+                        break
+                
+                if not conditions_hold:
+                    continue
 
                 # if splitter.check_presplit_conditions(&current_split, n_missing, missing_go_to_left) == 1:
                 #     continue
@@ -795,13 +802,18 @@ cdef inline intp_t node_split_best(
                 # ):
                 #     continue
 
+                conditions_hold = True
                 for condition in splitter.postsplit_conditions:
                     if not condition.f(
                         splitter, &current_split, n_missing, missing_go_to_left,
                         lower_bound, upper_bound, condition.p
                     ):
-                        continue
-
+                        conditions_hold = False
+                        break
+                
+                if not conditions_hold:
+                    continue
+                
                 # # Reject if min_weight_leaf is not satisfied
                 # if splitter.check_postsplit_conditions() == 1:
                 #     continue
