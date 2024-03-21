@@ -125,71 +125,71 @@ cdef class MonotonicConstraintCondition(SplitCondition):
         self.t.f = monotonic_constraint_condition
         self.t.p = NULL
 
-cdef struct HasDataParameters:
-    int min_samples
+# cdef struct HasDataParameters:
+#     int min_samples
 
-cdef bint has_data_condition(
-    Splitter splitter,
-    SplitRecord* current_split,
-    intp_t n_missing,
-    bint missing_go_to_left,
-    float64_t lower_bound,
-    float64_t upper_bound,
-    SplitConditionParameters split_condition_parameters
-) noexcept nogil:
-    cdef HasDataParameters* p = <HasDataParameters*>split_condition_parameters
-    return splitter.n_samples >= p.min_samples
+# cdef bint has_data_condition(
+#     Splitter splitter,
+#     SplitRecord* current_split,
+#     intp_t n_missing,
+#     bint missing_go_to_left,
+#     float64_t lower_bound,
+#     float64_t upper_bound,
+#     SplitConditionParameters split_condition_parameters
+# ) noexcept nogil:
+#     cdef HasDataParameters* p = <HasDataParameters*>split_condition_parameters
+#     return splitter.n_samples >= p.min_samples
 
-cdef class HasDataCondition(SplitCondition):
-    def __cinit__(self, int min_samples):
-        self.t.f = has_data_condition
-        self.t.p = malloc(sizeof(HasDataParameters))
-        (<HasDataParameters*>self.t.p).min_samples = min_samples
+# cdef class HasDataCondition(SplitCondition):
+#     def __cinit__(self, int min_samples):
+#         self.t.f = has_data_condition
+#         self.t.p = malloc(sizeof(HasDataParameters))
+#         (<HasDataParameters*>self.t.p).min_samples = min_samples
     
-    def __dealloc__(self):
-        if self.t.p is not NULL:
-            free(self.t.p)
+#     def __dealloc__(self):
+#         if self.t.p is not NULL:
+#             free(self.t.p)
         
-        super.__dealloc__(self)
+#         super.__dealloc__(self)
 
-cdef struct AlphaRegularityParameters:
-    float64_t alpha
+# cdef struct AlphaRegularityParameters:
+#     float64_t alpha
 
-cdef bint alpha_regularity_condition(
-    Splitter splitter,
-    SplitRecord* current_split,
-    intp_t n_missing,
-    bint missing_go_to_left,
-    float64_t lower_bound,
-    float64_t upper_bound,
-    SplitConditionParameters split_condition_parameters
-) noexcept nogil:
-    cdef AlphaRegularityParameters* p = <AlphaRegularityParameters*>split_condition_parameters
+# cdef bint alpha_regularity_condition(
+#     Splitter splitter,
+#     SplitRecord* current_split,
+#     intp_t n_missing,
+#     bint missing_go_to_left,
+#     float64_t lower_bound,
+#     float64_t upper_bound,
+#     SplitConditionParameters split_condition_parameters
+# ) noexcept nogil:
+#     cdef AlphaRegularityParameters* p = <AlphaRegularityParameters*>split_condition_parameters
 
-    return True
+#     return True
 
-cdef class AlphaRegularityCondition(SplitCondition):
-    def __cinit__(self, float64_t alpha):
-        self.t.f = alpha_regularity_condition
-        self.t.p = malloc(sizeof(AlphaRegularityParameters))
-        (<AlphaRegularityParameters*>self.t.p).alpha = alpha
+# cdef class AlphaRegularityCondition(SplitCondition):
+#     def __cinit__(self, float64_t alpha):
+#         self.t.f = alpha_regularity_condition
+#         self.t.p = malloc(sizeof(AlphaRegularityParameters))
+#         (<AlphaRegularityParameters*>self.t.p).alpha = alpha
     
-    def __dealloc__(self):
-        if self.t.p is not NULL:
-            free(self.t.p)
+#     def __dealloc__(self):
+#         if self.t.p is not NULL:
+#             free(self.t.p)
         
-        super.__dealloc__(self)
+#         super.__dealloc__(self)
 
 
-from ._tree cimport Tree
-cdef class FooTree(Tree):
-    cdef Splitter splitter
+# from ._tree cimport Tree
+# cdef class FooTree(Tree):
+#     cdef Splitter splitter
 
-    def __init__(self):
-        self.splitter = Splitter(
-            presplit_conditions = [HasDataCondition(10)],
-            postsplit_conditions = [AlphaRegularityCondition(0.1)],
-        )
+#     def __init__(self):
+#         self.splitter = Splitter(
+#             presplit_conditions = [HasDataCondition(10)],
+#             postsplit_conditions = [AlphaRegularityCondition(0.1)],
+#         )
 
 
 cdef inline void _init_split(SplitRecord* self, intp_t start_pos) noexcept nogil:
