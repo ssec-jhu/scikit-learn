@@ -349,11 +349,21 @@ cdef class Splitter(BaseSplitter):
         self.min_samples_leaf_condition = MinSamplesLeafCondition()
         self.min_weight_leaf_condition = MinWeightLeafCondition()
 
+        self.presplit_conditions.resize(
+            1
+            + ( 0 if presplit_conditions is None else len(presplit_conditions) )
+            + ( 1 if self.with_monotonic_cst else 0 )
+        )
         self.presplit_conditions.push_back((<SplitCondition>self.min_samples_leaf_condition).t)
         if presplit_conditions is not None:
             for condition in presplit_conditions:
                 self.presplit_conditions.push_back((<SplitCondition>condition).t)
-        
+
+        self.postsplit_conditions.resize(
+            1
+            + ( 0 if postsplit_conditions is None else len(postsplit_conditions) )
+            + ( 1 if self.with_monotonic_cst else 0 )
+        )        
         self.postsplit_conditions.push_back((<SplitCondition>self.min_weight_leaf_condition).t)
         if postsplit_conditions is not None:
             for condition in postsplit_conditions:
