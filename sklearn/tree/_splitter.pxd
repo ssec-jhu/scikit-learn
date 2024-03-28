@@ -157,8 +157,8 @@ cdef class Splitter(BaseSplitter):
     cdef SplitCondition min_weight_leaf_condition
     cdef SplitCondition monotonic_constraint_condition
 
-    cdef vector[SplitConditionTuple] *presplit_conditions
-    cdef vector[SplitConditionTuple] *postsplit_conditions
+    cdef vector[SplitConditionTuple] presplit_conditions
+    cdef vector[SplitConditionTuple] postsplit_conditions
 
     cdef int init(
         self,

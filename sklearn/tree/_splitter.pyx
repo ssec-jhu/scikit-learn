@@ -349,17 +349,6 @@ cdef class Splitter(BaseSplitter):
         self.min_samples_leaf_condition = MinSamplesLeafCondition()
         self.min_weight_leaf_condition = MinWeightLeafCondition()
 
-        cdef intp_t n_conditions = 1
-        + ( 0 if presplit_conditions is None else len(presplit_conditions) )
-        + ( 1 if self.with_monotonic_cst else 0 )
-
-        self.presplit_conditions = new vector[SplitConditionTuple](n_conditions)
-
-        n_conditions = 1
-        + ( 0 if postsplit_conditions is None else len(postsplit_conditions) )
-        + ( 1 if self.with_monotonic_cst else 0 )
-        self.postsplit_conditions = new vector[SplitConditionTuple](n_conditions)
-
         self.presplit_conditions.push_back((<SplitCondition>self.min_samples_leaf_condition).t)
         if presplit_conditions is not None:
             for condition in presplit_conditions:
@@ -375,11 +364,6 @@ cdef class Splitter(BaseSplitter):
             self.presplit_conditions.push_back((<SplitCondition>self.monotonic_constraint_condition).t)
             self.postsplit_conditions.push_back((<SplitCondition>self.monotonic_constraint_condition).t)
 
-
-    def __dealloc__(self):
-        del self.presplit_conditions
-        del self.postsplit_conditions
-    
 
     def __reduce__(self):
         return (type(self), (self.criterion,
@@ -790,11 +774,10 @@ cdef inline intp_t node_split_best(
                 #     n_right = end_non_missing - current_split.pos + n_missing
 
                 conditions_hold = True
-                # for condition in splitter.presplit_conditions:
-                for i in range(splitter.presplit_conditions.size()):
-                    if not splitter.presplit_conditions[0][i].f(
+                for condition in splitter.presplit_conditions:
+                    if not condition.f(
                         splitter, &current_split, n_missing, missing_go_to_left,
-                        lower_bound, upper_bound, splitter.presplit_conditions[0][i].p
+                        lower_bound, upper_bound, condition.p
                     ):
                         conditions_hold = False
                         break
@@ -820,11 +803,10 @@ cdef inline intp_t node_split_best(
                 #     continue
 
                 conditions_hold = True
-                # for condition in splitter.postsplit_conditions:
-                for i in range(splitter.postsplit_conditions.size()):
-                    if not splitter.presplit_conditions[0][i].f(
+                for condition in splitter.postsplit_conditions:
+                    if not condition.f(
                         splitter, &current_split, n_missing, missing_go_to_left,
-                        lower_bound, upper_bound, splitter.presplit_conditions[0][i].p
+                        lower_bound, upper_bound, condition.p
                     ):
                         conditions_hold = False
                         break
