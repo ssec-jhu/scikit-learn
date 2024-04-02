@@ -44,6 +44,31 @@ cdef float32_t FEATURE_THRESHOLD = 1e-7
 cdef float32_t EXTRACT_NNZ_SWITCH = 0.1
 
 
+cdef class SplitCondition:
+    def __cinit__(self):
+        self._constitute_tuple(None)
+    
+    def __dealloc__(self):
+        if self.t.p is not NULL:
+            free(self.t.p)
+
+    def _constitute_tuple(self):
+        raise NotImplementedError()
+
+    def __getstate__(self):
+        return {}
+    
+    def __setstate__(self, d):
+        self._constitute_tuple(d)
+    
+    def __reduce__(self):
+        return (
+            type(self),
+            (),
+            self.__getstate__()
+        )
+
+
 cdef bint min_sample_leaf_condition(
     Splitter splitter,
     SplitRecord* current_split,
@@ -71,7 +96,7 @@ cdef bint min_sample_leaf_condition(
     return True
 
 cdef class MinSamplesLeafCondition(SplitCondition):
-    def __cinit__(self):
+    def _constitute_tuple(self, d):
         self.t.f = min_sample_leaf_condition
         self.t.p = NULL # min_samples is stored in splitter, which is already passed to f
 
@@ -94,7 +119,7 @@ cdef bint min_weight_leaf_condition(
     return True
 
 cdef class MinWeightLeafCondition(SplitCondition):
-    def __cinit__(self):
+    def _constitute_tuple(self, d):
         self.t.f = min_weight_leaf_condition
         self.t.p = NULL # min_weight_leaf is stored in splitter, which is already passed to f
 
@@ -121,7 +146,7 @@ cdef bint monotonic_constraint_condition(
     return True
 
 cdef class MonotonicConstraintCondition(SplitCondition):
-    def __cinit__(self):
+    def _constitute_tuple(self, d):
         self.t.f = monotonic_constraint_condition
         self.t.p = NULL
 
@@ -304,8 +329,8 @@ cdef class Splitter(BaseSplitter):
         float64_t min_weight_leaf,
         object random_state,
         const cnp.int8_t[:] monotonic_cst,
-        SplitCondition[:] presplit_conditions = None,
-        SplitCondition[:] postsplit_conditions = None,
+        list presplit_conditions = [],
+        list postsplit_conditions = [],
         *argv
     ):
         """
@@ -346,32 +371,62 @@ cdef class Splitter(BaseSplitter):
         self.monotonic_cst = monotonic_cst
         self.with_monotonic_cst = monotonic_cst is not None
 
-        self.min_samples_leaf_condition = MinSamplesLeafCondition()
-        self.min_weight_leaf_condition = MinWeightLeafCondition()
+        self._presplit_conditions = [] if presplit_conditions is None else presplit_conditions
+        self._postsplit_conditions = [] if postsplit_conditions is None else postsplit_conditions
 
-        self.presplit_conditions.push_back((<SplitCondition>self.min_samples_leaf_condition).t)
-        if presplit_conditions is not None:
-            for condition in presplit_conditions:
-                self.presplit_conditions.push_back((<SplitCondition>condition).t)
-
-        self.postsplit_conditions.push_back((<SplitCondition>self.min_weight_leaf_condition).t)
-        if postsplit_conditions is not None:
-            for condition in postsplit_conditions:
-                self.postsplit_conditions.push_back((<SplitCondition>condition).t)
+        self._presplit_conditions.append(MinSamplesLeafCondition())
+        self._postsplit_conditions.append(MinWeightLeafCondition())
 
         if(self.with_monotonic_cst):
-            self.monotonic_constraint_condition = MonotonicConstraintCondition()
-            self.presplit_conditions.push_back((<SplitCondition>self.monotonic_constraint_condition).t)
-            self.postsplit_conditions.push_back((<SplitCondition>self.monotonic_constraint_condition).t)
+            self._presplit_conditions.append(MonotonicConstraintCondition())
+            self._postsplit_conditions.append(MonotonicConstraintCondition())
+        
+        self._constitute_split_conditions()
 
 
+    def _constitute_split_conditions(self):
+        for condition in self._presplit_conditions:
+            if not isinstance(condition, SplitCondition):
+                raise ValueError("All conditions must be of type SplitCondition")
+            self.presplit_conditions.push_back(&((<SplitCondition>condition).t))
+        
+        for condition in self._postsplit_conditions:
+            if not isinstance(condition, SplitCondition):
+                raise ValueError("All conditions must be of type SplitCondition")
+            self.postsplit_conditions.push_back(&((<SplitCondition>condition).t))
+
+    def _constitute_split_conditions2(self):
+        self.presplit_conditions.resize(len(self._presplit_conditions))
+        for i in range(len(self._presplit_conditions)):
+            if not isinstance(self._presplit_conditions[i], SplitCondition):
+                raise ValueError("All conditions must be of type SplitCondition")
+            self.presplit_conditions[i] = &((<SplitCondition>self._presplit_conditions[i]).t)
+        
+        self.postsplit_conditions.resize(len(self._postsplit_conditions))
+        for i in range(len(self._postsplit_conditions)):
+            if not isinstance(self._postsplit_conditions[i], SplitCondition):
+                raise ValueError("All conditions must be of type SplitCondition")
+            self.postsplit_conditions[i] = &((<SplitCondition>self._postsplit_conditions[i]).t)
+
+    def __setstate__(self, d):
+        super(Splitter, self).__setstate__(d)
+        self._constitute_split_conditions()
+    
     def __reduce__(self):
-        return (type(self), (self.criterion,
-                             self.max_features,
-                             self.min_samples_leaf,
-                             self.min_weight_leaf,
-                             self.random_state,
-                             self.monotonic_cst.base if self.monotonic_cst is not None else None), self.__getstate__())
+        return (
+            type(self),
+            (
+                self.criterion,
+                self.max_features,
+                self.min_samples_leaf,
+                self.min_weight_leaf,
+                self.random_state,
+                self.monotonic_cst.base if self.monotonic_cst is not None else None,
+                self._presplit_conditions,
+                self._postsplit_conditions
+            ),
+            self.__getstate__()
+        )
 
     cdef int init(
         self,
