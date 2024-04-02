@@ -381,7 +381,7 @@ cdef class Splitter(BaseSplitter):
             self._presplit_conditions.append(MonotonicConstraintCondition())
             self._postsplit_conditions.append(MonotonicConstraintCondition())
         
-        self._constitute_split_conditions()
+        self._constitute_split_conditions2()
 
 
     def _constitute_split_conditions(self):
