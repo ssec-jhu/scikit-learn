@@ -19,6 +19,7 @@
 
 from cython cimport final
 from libc.math cimport isnan
+from libc.stdint cimport uintptr_t
 from libc.stdlib cimport qsort, free
 from libc.string cimport memcpy
 cimport numpy as cnp
@@ -346,44 +347,65 @@ cdef class Splitter(BaseSplitter):
         self.monotonic_cst = monotonic_cst
         self.with_monotonic_cst = monotonic_cst is not None
 
-        self.min_samples_leaf_condition = MinSamplesLeafCondition()
-        self.min_weight_leaf_condition = MinWeightLeafCondition()
+        self._presplit_conditions = presplit_conditions
+        self._postsplit_conditions = postsplit_conditions
 
-        self.presplit_conditions.resize(
-            (len(presplit_conditions) if presplit_conditions is not None else 0)
-            + (2 if self.with_monotonic_cst else 1)
-        )
-        self.postsplit_conditions.resize(
-            (len(postsplit_conditions) if postsplit_conditions is not None else 0)
-            + (2 if self.with_monotonic_cst else 1)
-        )
+        self._presplit_conditions.append(MinSamplesLeafCondition())
+        self._postsplit_conditions.append(MinWeightLeafCondition())
 
-        offset = 0
-        self.presplit_conditions[offset] = self.min_samples_leaf_condition.t
-        self.postsplit_conditions[offset] = self.min_weight_leaf_condition.t
-        offset += 1
-
-        if(self.with_monotonic_cst):
-            self.monotonic_constraint_condition = MonotonicConstraintCondition()
-            # self.presplit_conditions.push_back((<SplitCondition>self.monotonic_constraint_condition).t)
-            # self.postsplit_conditions.push_back((<SplitCondition>self.monotonic_constraint_condition).t)
-            self.presplit_conditions[offset] = self.monotonic_constraint_condition.t
-            self.postsplit_conditions[offset] = self.monotonic_constraint_condition.t
-            offset += 1
-
-        # self.presplit_conditions.push_back((<SplitCondition>self.min_samples_leaf_condition).t)
-        if presplit_conditions is not None:
-            # for condition in presplit_conditions:
-            #    self.presplit_conditions.push_back((<SplitCondition>condition).t)
-            for i in range(len(presplit_conditions)):
-                self.presplit_conditions[i + offset] = presplit_conditions[i].t
+        if self.with_monotonic_cst:
+            self._presplit_conditions.append(MonotonicConstraintCondition())
+            self._postsplit_conditions.append(MonotonicConstraintCondition())
         
-        # self.postsplit_conditions.push_back((<SplitCondition>self.min_weight_leaf_condition).t)
-        if postsplit_conditions is not None:
-            # for condition in postsplit_conditions:
-            #     self.postsplit_conditions.push_back((<SplitCondition>condition).t)
-            for i in range(len(postsplit_conditions)):
-                self.postsplit_conditions[i + offset] = postsplit_conditions[i].t
+        self.presplit_conditions.resize(len(self._presplit_conditions))
+        self.postsplit_conditions.resize(len(self._postsplit_conditions))
+
+        for i in range(len(self._presplit_conditions)):
+            self.presplit_conditions[i].f = <SplitConditionFunction><uintptr_t>self._presplit_conditions[i].t.f
+            self.presplit_conditions[i].p = <SplitConditionParameters><uintptr_t>self._presplit_conditions[i].t.p
+        
+        for i in range(len(self._postsplit_conditions)):
+            self.postsplit_conditions[i].f = <SplitConditionFunction><uintptr_t>self._postsplit_conditions[i].t.f
+            self.postsplit_conditions[i].p = <SplitConditionParameters><uintptr_t>self._postsplit_conditions[i].t.p
+        
+        # self.min_samples_leaf_condition = MinSamplesLeafCondition()
+        # self.min_weight_leaf_condition = MinWeightLeafCondition()
+
+        # self.presplit_conditions.resize(
+        #     (len(presplit_conditions) if presplit_conditions is not None else 0)
+        #     + (2 if self.with_monotonic_cst else 1)
+        # )
+        # self.postsplit_conditions.resize(
+        #     (len(postsplit_conditions) if postsplit_conditions is not None else 0)
+        #     + (2 if self.with_monotonic_cst else 1)
+        # )
+
+        # offset = 0
+        # self.presplit_conditions[offset] = self.min_samples_leaf_condition.t
+        # self.postsplit_conditions[offset] = self.min_weight_leaf_condition.t
+        # offset += 1
+
+        # if(self.with_monotonic_cst):
+        #     self.monotonic_constraint_condition = MonotonicConstraintCondition()
+        #     # self.presplit_conditions.push_back((<SplitCondition>self.monotonic_constraint_condition).t)
+        #     # self.postsplit_conditions.push_back((<SplitCondition>self.monotonic_constraint_condition).t)
+        #     self.presplit_conditions[offset] = self.monotonic_constraint_condition.t
+        #     self.postsplit_conditions[offset] = self.monotonic_constraint_condition.t
+        #     offset += 1
+
+        # # self.presplit_conditions.push_back((<SplitCondition>self.min_samples_leaf_condition).t)
+        # if presplit_conditions is not None:
+        #     # for condition in presplit_conditions:
+        #     #    self.presplit_conditions.push_back((<SplitCondition>condition).t)
+        #     for i in range(len(presplit_conditions)):
+        #         self.presplit_conditions[i + offset] = presplit_conditions[i].t
+        
+        # # self.postsplit_conditions.push_back((<SplitCondition>self.min_weight_leaf_condition).t)
+        # if postsplit_conditions is not None:
+        #     # for condition in postsplit_conditions:
+        #     #     self.postsplit_conditions.push_back((<SplitCondition>condition).t)
+        #     for i in range(len(postsplit_conditions)):
+        #         self.postsplit_conditions[i + offset] = postsplit_conditions[i].t
 
 
     def __reduce__(self):
