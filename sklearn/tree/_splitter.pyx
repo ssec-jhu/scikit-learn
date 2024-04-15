@@ -22,18 +22,17 @@ from libc.math cimport isnan
 from libc.stdint cimport uintptr_t
 from libc.stdlib cimport qsort, free
 from libc.string cimport memcpy
-cimport numpy as cnp
 
 from ._criterion cimport Criterion
+from ._utils cimport log
+from ._utils cimport rand_int
+from ._utils cimport rand_uniform
+from ._utils cimport RAND_R_MAX
+from ..utils._typedefs cimport int8_t
 
 import numpy as np
-
 from scipy.sparse import issparse
 
-from ._utils cimport RAND_R_MAX, log, rand_int, rand_uniform
-
-
-cnp.import_array()
 
 cdef float64_t INFINITY = np.inf
 
@@ -248,11 +247,8 @@ cdef class BaseSplitter:
 
     cdef int node_split(
         self,
-        float64_t impurity,
+        ParentInfo* parent,
         SplitRecord* split,
-        intp_t* n_constant_features,
-        float64_t lower_bound,
-        float64_t upper_bound
     ) except -1 nogil:
         """Find the best split on node samples[start:end].
 
@@ -268,9 +264,6 @@ cdef class BaseSplitter:
         split : SplitRecord pointer
             A pointer to a memory-allocated SplitRecord object which will be filled with the
             split chosen.
-        n_constant_features : intp_t pointer
-            A pointer to a memory-allocated intp_t object which will be filled with the
-            number of constant features. Optional to use.
         lower_bound : float64_t
             The lower bound of the monotonic constraint if used.
         upper_bound : float64_t
@@ -304,7 +297,7 @@ cdef class Splitter(BaseSplitter):
         intp_t min_samples_leaf,
         float64_t min_weight_leaf,
         object random_state,
-        const cnp.int8_t[:] monotonic_cst,
+        const int8_t[:] monotonic_cst,
         SplitCondition[:] presplit_conditions = None,
         SplitCondition[:] postsplit_conditions = None,
         *argv
@@ -331,7 +324,7 @@ cdef class Splitter(BaseSplitter):
         random_state : object
             The user inputted random state to be used for pseudo-randomness
 
-        monotonic_cst : const cnp.int8_t[:]
+        monotonic_cst : const int8_t[:]
             Monotonicity constraints
 
         """
@@ -533,11 +526,8 @@ cdef class Splitter(BaseSplitter):
 
     cdef int node_split(
         self,
-        float64_t impurity,
+        ParentInfo* parent_record,
         SplitRecord* split,
-        intp_t* n_constant_features,
-        float64_t lower_bound,
-        float64_t upper_bound,
     ) except -1 nogil:
 
         """Find the best split on node samples[start:end].
@@ -621,6 +611,13 @@ cdef inline void shift_missing_values_to_left_if_required(
     intp_t[::1] samples,
     intp_t end,
 ) noexcept nogil:
+    """Shift missing value sample indices to the left of the split if required.
+
+    Note: this should always be called at the very end because it will
+    move samples around, thereby affecting the criterion.
+    This affects the computation of the children impurity, which affects
+    the computation of the next node.
+    """
     cdef intp_t i, p, current_end
     # The partitioner partitions the data such that the missing values are in
     # samples[-n_missing:] for the criterion to consume. If the missing values
@@ -648,13 +645,10 @@ cdef inline intp_t node_split_best(
     Splitter splitter,
     Partitioner partitioner,
     Criterion criterion,
-    float64_t impurity,
     SplitRecord* split,
-    intp_t* n_constant_features,
+    ParentInfo* parent_record,
     bint with_monotonic_cst,
-    const cnp.int8_t[:] monotonic_cst,
-    float64_t lower_bound,
-    float64_t upper_bound,
+    const int8_t[:] monotonic_cst,
 ) except -1 nogil:
     """Find the best split on node samples[start:end]
 
@@ -680,11 +674,15 @@ cdef inline intp_t node_split_best(
     cdef intp_t max_features = splitter.max_features
     cdef intp_t min_samples_leaf = splitter.min_samples_leaf
     cdef float64_t min_weight_leaf = splitter.min_weight_leaf
-    cdef UINT32_t* random_state = &splitter.rand_r_state
+    cdef uint32_t* random_state = &splitter.rand_r_state
 
     cdef SplitRecord best_split, current_split
     cdef float64_t current_proxy_improvement = -INFINITY
     cdef float64_t best_proxy_improvement = -INFINITY
+
+    cdef float64_t impurity = parent_record.impurity
+    cdef float64_t lower_bound = parent_record.lower_bound
+    cdef float64_t upper_bound = parent_record.upper_bound
 
     cdef intp_t f_i = n_features
     cdef intp_t f_j
@@ -696,7 +694,7 @@ cdef inline intp_t node_split_best(
     cdef intp_t n_found_constants = 0
     # Number of features known to be constant and drawn without replacement
     cdef intp_t n_drawn_constants = 0
-    cdef intp_t n_known_constants = n_constant_features[0]
+    cdef intp_t n_known_constants = parent_record.n_constant_features
     # n_total_constants = n_known_constants + n_found_constants
     cdef intp_t n_total_constants = n_known_constants
 
@@ -771,8 +769,8 @@ cdef inline intp_t node_split_best(
         f_i -= 1
         features[f_i], features[f_j] = features[f_j], features[f_i]
         has_missing = n_missing != 0
-        if has_missing:
-            criterion.init_missing(n_missing)
+        criterion.init_missing(n_missing)  # initialize even when n_missing == 0
+
         # Evaluate all splits
         # If there are missing values, then we search twice for the most optimal split.
         # The first search will have all the missing values going to the right node.
@@ -916,8 +914,7 @@ cdef inline intp_t node_split_best(
             best_split.feature,
             best_split.n_missing
         )
-        if best_split.n_missing != 0:
-            criterion.init_missing(best_split.n_missing)
+        criterion.init_missing(best_split.n_missing)
         criterion.missing_go_to_left = best_split.missing_go_to_left
 
         criterion.reset()
@@ -944,8 +941,8 @@ cdef inline intp_t node_split_best(
            sizeof(intp_t) * n_found_constants)
 
     # Return values
+    parent_record.n_constant_features = n_total_constants
     split[0] = best_split
-    n_constant_features[0] = n_total_constants
     return 0
 
 
@@ -1066,13 +1063,10 @@ cdef inline int node_split_random(
     Splitter splitter,
     Partitioner partitioner,
     Criterion criterion,
-    float64_t impurity,
     SplitRecord* split,
-    intp_t* n_constant_features,
+    ParentInfo* parent_record,
     bint with_monotonic_cst,
-    const cnp.int8_t[:] monotonic_cst,
-    float64_t lower_bound,
-    float64_t upper_bound,
+    const int8_t[:] monotonic_cst,
 ) except -1 nogil:
     """Find the best random split on node samples[start:end]
 
@@ -1088,11 +1082,15 @@ cdef inline int node_split_random(
     cdef intp_t n_features = splitter.n_features
 
     cdef intp_t max_features = splitter.max_features
-    cdef UINT32_t* random_state = &splitter.rand_r_state
+    cdef uint32_t* random_state = &splitter.rand_r_state
 
     cdef SplitRecord best_split, current_split
     cdef float64_t current_proxy_improvement = - INFINITY
     cdef float64_t best_proxy_improvement = - INFINITY
+
+    cdef float64_t impurity = parent_record.impurity
+    cdef float64_t lower_bound = parent_record.lower_bound
+    cdef float64_t upper_bound = parent_record.upper_bound
 
     cdef intp_t f_i = n_features
     cdef intp_t f_j
@@ -1100,7 +1098,7 @@ cdef inline int node_split_random(
     cdef intp_t n_found_constants = 0
     # Number of features known to be constant and drawn without replacement
     cdef intp_t n_drawn_constants = 0
-    cdef intp_t n_known_constants = n_constant_features[0]
+    cdef intp_t n_known_constants = parent_record.n_constant_features
     # n_total_constants = n_known_constants + n_found_constants
     cdef intp_t n_total_constants = n_known_constants
     cdef intp_t n_visited_features = 0
@@ -1254,8 +1252,8 @@ cdef inline int node_split_random(
            sizeof(intp_t) * n_found_constants)
 
     # Return values
+    parent_record.n_constant_features = n_total_constants
     split[0] = best_split
-    n_constant_features[0] = n_total_constants
     return 0
 
 
@@ -1911,23 +1909,17 @@ cdef class BestSplitter(Splitter):
 
     cdef int node_split(
         self,
-        float64_t impurity,
+        ParentInfo* parent_record,
         SplitRecord* split,
-        intp_t* n_constant_features,
-        float64_t lower_bound,
-        float64_t upper_bound
     ) except -1 nogil:
         return node_split_best(
             self,
             self.partitioner,
             self.criterion,
-            impurity,
             split,
-            n_constant_features,
+            parent_record,
             self.with_monotonic_cst,
             self.monotonic_cst,
-            lower_bound,
-            upper_bound
         )
 
 cdef class BestSparseSplitter(Splitter):
@@ -1947,23 +1939,17 @@ cdef class BestSparseSplitter(Splitter):
 
     cdef int node_split(
         self,
-        float64_t impurity,
+        ParentInfo* parent_record,
         SplitRecord* split,
-        intp_t* n_constant_features,
-        float64_t lower_bound,
-        float64_t upper_bound
     ) except -1 nogil:
         return node_split_best(
             self,
             self.partitioner,
             self.criterion,
-            impurity,
             split,
-            n_constant_features,
+            parent_record,
             self.with_monotonic_cst,
             self.monotonic_cst,
-            lower_bound,
-            upper_bound
         )
 
 cdef class RandomSplitter(Splitter):
@@ -1983,23 +1969,17 @@ cdef class RandomSplitter(Splitter):
 
     cdef int node_split(
         self,
-        float64_t impurity,
+        ParentInfo* parent_record,
         SplitRecord* split,
-        intp_t* n_constant_features,
-        float64_t lower_bound,
-        float64_t upper_bound
     ) except -1 nogil:
         return node_split_random(
             self,
             self.partitioner,
             self.criterion,
-            impurity,
             split,
-            n_constant_features,
+            parent_record,
             self.with_monotonic_cst,
             self.monotonic_cst,
-            lower_bound,
-            upper_bound
         )
 
 cdef class RandomSparseSplitter(Splitter):
@@ -2018,21 +1998,15 @@ cdef class RandomSparseSplitter(Splitter):
         )
     cdef int node_split(
             self,
-            float64_t impurity,
+            ParentInfo* parent_record,
             SplitRecord* split,
-            intp_t* n_constant_features,
-            float64_t lower_bound,
-            float64_t upper_bound
     ) except -1 nogil:
         return node_split_random(
             self,
             self.partitioner,
             self.criterion,
-            impurity,
             split,
-            n_constant_features,
+            parent_record,
             self.with_monotonic_cst,
             self.monotonic_cst,
-            lower_bound,
-            upper_bound
         )

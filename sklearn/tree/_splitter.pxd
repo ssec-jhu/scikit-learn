@@ -11,14 +11,12 @@
 # License: BSD 3 clause
 
 # See _splitter.pyx for details.
-cimport numpy as cnp
-
 from libcpp.vector cimport vector
 from libc.stdlib cimport malloc
 
-from ..utils._typedefs cimport float32_t, float64_t, intp_t, int32_t
-from ._utils cimport UINT32_t
+from ..utils._typedefs cimport float32_t, float64_t, intp_t, int8_t, int32_t, uint32_t
 from ._criterion cimport BaseCriterion, Criterion
+from ._tree cimport ParentInfo
 
 
 # NICE IDEAS THAT DON'T APPEAR POSSIBLE
@@ -70,8 +68,6 @@ cdef struct SplitRecord:
     float64_t improvement     # Impurity improvement given parent node.
     float64_t impurity_left   # Impurity of the left split.
     float64_t impurity_right  # Impurity of the right split.
-    float64_t lower_bound     # Lower bound on value of both children for monotonicity
-    float64_t upper_bound     # Upper bound on value of both children for monotonicity
     unsigned char missing_go_to_left  # Controls if missing values go to the left node.
     intp_t n_missing       # Number of missing values for the feature being split on
 
@@ -89,7 +85,7 @@ cdef class BaseSplitter:
     cdef public float64_t min_weight_leaf   # Minimum weight in a leaf
 
     cdef object random_state             # Random state
-    cdef UINT32_t rand_r_state           # sklearn_rand_r random number state
+    cdef uint32_t rand_r_state           # sklearn_rand_r random number state
 
     cdef intp_t[::1] samples             # Sample indices in X, y
     cdef intp_t n_samples                # X.shape[0]
@@ -129,11 +125,8 @@ cdef class BaseSplitter:
     ) except -1 nogil
     cdef int node_split(
         self,
-        float64_t impurity,   # Impurity of the node
+        ParentInfo* parent,
         SplitRecord* split,
-        intp_t* n_constant_features,
-        float64_t lower_bound,
-        float64_t upper_bound,
     ) except -1 nogil
     cdef void node_value(self, float64_t* dest) noexcept nogil
     cdef float64_t node_impurity(self) noexcept nogil
@@ -150,7 +143,7 @@ cdef class Splitter(BaseSplitter):
     #   -1: monotonic decrease
     #    0: no constraint
     #   +1: monotonic increase
-    cdef const cnp.int8_t[:] monotonic_cst
+    cdef const int8_t[:] monotonic_cst
     cdef bint with_monotonic_cst
 
     cdef SplitCondition min_samples_leaf_condition
@@ -188,3 +181,9 @@ cdef class Splitter(BaseSplitter):
         float64_t lower_bound,
         float64_t upper_bound
     ) noexcept nogil
+
+cdef void shift_missing_values_to_left_if_required(
+    SplitRecord* best,
+    intp_t[::1] samples,
+    intp_t end,
+) noexcept nogil

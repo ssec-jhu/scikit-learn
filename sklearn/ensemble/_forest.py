@@ -104,14 +104,18 @@ def _get_n_samples_bootstrap(n_samples, max_samples):
     """
     Get the number of samples in a bootstrap sample.
 
+    The expected total number of unique samples in a bootstrap sample is
+    required to be at most ``n_samples - 1``.
+    This is equivalent to the expected number of out-of-bag samples being at
+    least 1.
+
     Parameters
     ----------
     n_samples : int
         Number of samples in the dataset.
     max_samples : int or float
         The maximum number of samples to draw from the total available:
-            - if float, this indicates a fraction of the total and should be
-              the interval `(0.0, 1.0]`;
+            - if float, this indicates a fraction of the total;
             - if int, this indicates the exact number of samples;
             - if None, this indicates the total number of samples.
 
@@ -124,12 +128,21 @@ def _get_n_samples_bootstrap(n_samples, max_samples):
         return n_samples
 
     if isinstance(max_samples, Integral):
-        if max_samples > n_samples:
-            msg = "`max_samples` must be <= n_samples={} but got value {}"
-            raise ValueError(msg.format(n_samples, max_samples))
+        expected_oob_samples = (1 - np.exp(-max_samples / n_samples)) * n_samples
+        if expected_oob_samples >= n_samples - 1:
+            raise ValueError(
+                "The expected number of unique samples in the bootstrap sample"
+                f" must be at most {n_samples - 1}. It is: {expected_oob_samples}"
+            )
         return max_samples
 
     if isinstance(max_samples, Real):
+        expected_oob_samples = (1 - np.exp(-max_samples)) * n_samples
+        if expected_oob_samples >= n_samples - 1:
+            raise ValueError(
+                "The expected number of unique samples in the bootstrap sample"
+                f" must be at most {n_samples - 1}. It is: {expected_oob_samples}"
+            )
         return max(round(n_samples * max_samples), 1)
 
 
@@ -582,41 +595,17 @@ class BaseForest(MultiOutputMixin, BaseEnsemble, metaclass=ABCMeta):
                 # would have got if we hadn't used a warm_start.
                 random_state.randint(MAX_INT, size=len(self.estimators_))
 
-            trees = [
-                self._make_estimator(append=False, random_state=random_state)
-                for i in range(n_more_estimators)
-            ]
-
-            # Parallel loop: we prefer the threading backend as the Cython code
-            # for fitting the trees is internally releasing the Python GIL
-            # making threading more efficient than multiprocessing in
-            # that case. However, for joblib 0.12+ we respect any
-            # parallel_backend contexts set at a higher level,
-            # since correctness does not rely on using threads.
-            trees = Parallel(
-                n_jobs=self.n_jobs,
-                verbose=self.verbose,
-                prefer="threads",
-            )(
-                delayed(_parallel_build_trees)(
-                    t,
-                    self.bootstrap,
-                    X,
-                    y,
-                    sample_weight,
-                    i,
-                    len(trees),
-                    verbose=self.verbose,
-                    class_weight=self.class_weight,
-                    n_samples_bootstrap=n_samples_bootstrap,
-                    missing_values_in_feature_mask=missing_values_in_feature_mask,
-                    classes=classes,
-                )
-                for i, t in enumerate(trees)
+            # construct the trees in parallel
+            self._construct_trees(
+                X,
+                y,
+                sample_weight,
+                random_state,
+                n_samples_bootstrap,
+                missing_values_in_feature_mask,
+                classes,
+                n_more_estimators,
             )
-
-            # Collect newly grown trees
-            self.estimators_.extend(trees)
 
         if self.oob_score and (
             n_more_estimators > 0 or not hasattr(self, "oob_score_")
@@ -650,6 +639,53 @@ class BaseForest(MultiOutputMixin, BaseEnsemble, metaclass=ABCMeta):
             self.classes_ = self.classes_[0]
 
         return self
+
+    def _construct_trees(
+        self,
+        X,
+        y,
+        sample_weight,
+        random_state,
+        n_samples_bootstrap,
+        missing_values_in_feature_mask,
+        classes,
+        n_more_estimators,
+    ):
+        trees = [
+            self._make_estimator(append=False, random_state=random_state)
+            for i in range(n_more_estimators)
+        ]
+
+        # Parallel loop: we prefer the threading backend as the Cython code
+        # for fitting the trees is internally releasing the Python GIL
+        # making threading more efficient than multiprocessing in
+        # that case. However, for joblib 0.12+ we respect any
+        # parallel_backend contexts set at a higher level,
+        # since correctness does not rely on using threads.
+        trees = Parallel(
+            n_jobs=self.n_jobs,
+            verbose=self.verbose,
+            prefer="threads",
+        )(
+            delayed(_parallel_build_trees)(
+                t,
+                self.bootstrap,
+                X,
+                y,
+                sample_weight,
+                i,
+                len(trees),
+                verbose=self.verbose,
+                class_weight=self.class_weight,
+                n_samples_bootstrap=n_samples_bootstrap,
+                missing_values_in_feature_mask=missing_values_in_feature_mask,
+                classes=classes,
+            )
+            for i, t in enumerate(trees)
+        )
+
+        # Collect newly grown trees
+        self.estimators_.extend(trees)
 
     @abstractmethod
     def _set_oob_score_and_attributes(self, X, y, scoring_function=None):
@@ -1083,7 +1119,7 @@ class ForestClassifier(ClassifierMixin, BaseForest, metaclass=ABCMeta):
             The OOB associated predictions.
         """
         y_pred = tree.predict_proba(X, check_input=False)
-        y_pred = np.array(y_pred, copy=False)
+        y_pred = np.asarray(y_pred)
         if y_pred.ndim == 2:
             # binary and multiclass
             y_pred = y_pred[..., np.newaxis]
