@@ -11,10 +11,10 @@
 
 # See _splitter.pyx for details.
 from libcpp.vector cimport vector
-from ._tree cimport ParentInfo
 
-from ..utils._typedefs cimport float32_t, float64_t, intp_t, int8_t, int32_t, uint32_t
 from ._criterion cimport BaseCriterion, Criterion
+from ._tree cimport ParentInfo
+from ..utils._typedefs cimport float32_t, float64_t, intp_t, int8_t, int32_t, uint32_t
 
 
 cdef struct SplitRecord:
@@ -28,7 +28,7 @@ cdef struct SplitRecord:
     float64_t impurity_left   # Impurity of the left split.
     float64_t impurity_right  # Impurity of the right split.
     unsigned char missing_go_to_left  # Controls if missing values go to the left node.
-    intp_t n_missing       # Number of missing values for the feature being split on
+    intp_t n_missing            # Number of missing values for the feature being split on
 
 cdef class BaseSplitter:
     """Abstract interface for splitter."""
