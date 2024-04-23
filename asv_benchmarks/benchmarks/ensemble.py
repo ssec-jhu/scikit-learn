@@ -2,7 +2,7 @@ from sklearn.ensemble import (
     GradientBoostingClassifier,
     HistGradientBoostingClassifier,
     RandomForestClassifier,
-    RandomForestRegressor
+    RandomForestRegressor,
 )
 
 from .common import Benchmark, Estimator, Predictor
@@ -11,7 +11,7 @@ from .datasets import (
     _20newsgroups_lowdim_dataset,
     _synth_classification_dataset,
     _synth_regression_dataset,
-    _synth_regression_sparse_dataset
+    _synth_regression_sparse_dataset,
 )
 from .utils import make_gen_classif_scorers, make_gen_reg_scorers
 
