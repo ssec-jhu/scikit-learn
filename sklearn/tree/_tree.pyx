@@ -115,7 +115,7 @@ cdef class TreeBuilder:
         object X,
         const float64_t[:, ::1] y,
         const float64_t[:] sample_weight=None,
-        const unsigned char[::1] missing_values_in_feature_mask=None,
+        const unsigned char[::1] missing_values_in_feature_mask=None
     ):
         """Build a decision tree from the training set (X, y)."""
         pass
@@ -187,6 +187,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
         float64_t min_impurity_decrease,
         unsigned char store_leaf_values=False,
         cnp.ndarray initial_roots=None,
+        TreeBuildEventHandlerClosureWrapper[:] listeners=None
     ):
         self.splitter = splitter
         self.min_samples_split = min_samples_split
@@ -278,7 +279,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
         object X,
         const float64_t[:, ::1] y,
         const float64_t[:] sample_weight=None,
-        const unsigned char[::1] missing_values_in_feature_mask=None,
+        const unsigned char[::1] missing_values_in_feature_mask=None
     ):
         """Build a decision tree from the training set (X, y)."""
 
@@ -700,6 +701,7 @@ cdef class BestFirstTreeBuilder(TreeBuilder):
         float64_t min_impurity_decrease,
         unsigned char store_leaf_values=False,
         cnp.ndarray initial_roots=None,
+        TreeBuildEventHandlerClosureWrapper[:] listeners=None
     ):
         self.splitter = splitter
         self.min_samples_split = min_samples_split
@@ -729,7 +731,7 @@ cdef class BestFirstTreeBuilder(TreeBuilder):
         object X,
         const float64_t[:, ::1] y,
         const float64_t[:] sample_weight=None,
-        const unsigned char[::1] missing_values_in_feature_mask=None,
+        const unsigned char[::1] missing_values_in_feature_mask=None
     ):
         """Build a decision tree from the training set (X, y)."""
 

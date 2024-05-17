@@ -22,6 +22,28 @@ from ..utils._typedefs cimport float32_t, float64_t, intp_t, int32_t, uint32_t
 from ._splitter cimport SplitRecord, Splitter
 
 
+ctypedef void* EventEnv
+ctypedef void* EventArgs
+
+cdef enum TreeBuildEvent:
+    SPLIT_ACCEPTED
+
+ctypedef bint (*TreeBuildEventHandler)(
+    TreeBuildEvent evt,
+    EventEnv env,
+    EventArgs args
+) noexcept nogil
+
+cdef struct TreeBuildEventHandlerClosure:
+    TreeBuildEventHandler f
+    EventEnv e
+
+cdef class TreeBuildEventHandlerClosureWrapper:
+    cdef TreeBuildEventHandlerClosure c
+
+cdef struct SplitAcceptedArgs:
+    SplitRecord* split_record
+
 cdef struct Node:
     # Base storage structure for the nodes in a Tree object
 
@@ -175,6 +197,8 @@ cdef class TreeBuilder:
 
     cdef unsigned char store_leaf_values    # Whether to store leaf values
 
+    cdef vector[TreeBuildEventHandlerClosure] listeners
+
     cpdef initialize_node_queue(
       self,
       Tree tree,
@@ -190,7 +214,7 @@ cdef class TreeBuilder:
         object X,
         const float64_t[:, ::1] y,
         const float64_t[:] sample_weight=*,
-        const unsigned char[::1] missing_values_in_feature_mask=*,
+        const unsigned char[::1] missing_values_in_feature_mask=*
     )
 
     cdef _check_input(
