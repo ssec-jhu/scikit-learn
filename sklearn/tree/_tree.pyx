@@ -198,6 +198,12 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
         self.store_leaf_values = store_leaf_values
         self.initial_roots = initial_roots
 
+        self.listeners.resize(len(listeners) if listeners is not None else 0)
+        if listeners is not None:
+            for i in range(len(listeners)):
+                self.listeners[i] = listeners[i].c
+
+
     def __reduce__(self):
         """Reduce re-implementation, for pickling."""
         return(DepthFirstTreeBuilder, (self.splitter,
@@ -296,6 +302,9 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
 
         cdef unsigned char store_leaf_values = self.store_leaf_values
         cdef cnp.ndarray initial_roots = self.initial_roots
+
+        cdef vector[TreeBuildEventHandlerClosure] listeners = self.listeners
+        cdef TreeBuildEventArgs event_args
 
         # Initial capacity
         cdef intp_t init_capacity
@@ -415,6 +424,12 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                     # assign local copy of SplitRecord to assign
                     # pos, improvement, and impurity scores
                     split = deref(split_ptr)
+
+                    event_args.start = start
+                    event_args.end = end
+                    event_args.split_record = split_ptr
+                    for listener in listeners:
+                        listener.f(TreeBuildEvent.SPLIT_ACCEPTED, listener.e, &event_args)
 
                     # If EPSILON=0 in the below comparison, float precision
                     # issues stop splitting, producing trees that are

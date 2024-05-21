@@ -22,27 +22,30 @@ from ..utils._typedefs cimport float32_t, float64_t, intp_t, int32_t, uint32_t
 from ._splitter cimport SplitRecord, Splitter
 
 
-ctypedef void* EventEnv
-ctypedef void* EventArgs
-
 cdef enum TreeBuildEvent:
-    SPLIT_ACCEPTED
+    SPLIT_ACCEPTED = 1
+
+cdef struct TreeBuildEventArgs:
+    intp_t start
+    intp_t end
+    SplitRecord* split_record
+
+ctypedef void* TreeBuildEventHandlerEnv
+# ctypedef void* TreeBuildEventHandlerArgs
 
 ctypedef bint (*TreeBuildEventHandler)(
     TreeBuildEvent evt,
-    EventEnv env,
-    EventArgs args
+    TreeBuildEventHandlerEnv env,
+    TreeBuildEventArgs* args
 ) noexcept nogil
 
 cdef struct TreeBuildEventHandlerClosure:
     TreeBuildEventHandler f
-    EventEnv e
+    TreeBuildEventHandlerEnv e
 
 cdef class TreeBuildEventHandlerClosureWrapper:
     cdef TreeBuildEventHandlerClosure c
 
-cdef struct SplitAcceptedArgs:
-    SplitRecord* split_record
 
 cdef struct Node:
     # Base storage structure for the nodes in a Tree object
