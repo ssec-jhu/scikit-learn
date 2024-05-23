@@ -71,8 +71,7 @@ cdef class BaseTree:
 
     cdef int _update_node(
         self,
-        intp_t parent,
-        bint is_left,
+        intp_t node_id,
         bint is_leaf,
         SplitRecord* split_node,
         float64_t impurity,
