@@ -911,6 +911,11 @@ cdef class BestFirstTreeBuilder(TreeBuilder):
     ) except -1 nogil:
         """Adds node w/ partition ``[start, end)`` to the frontier. """
         cdef SplitRecord split
+
+        # Note: we create a <*SplitRecord> pointer here in order to allow subclasses
+        # to know what kind of SplitRecord to use. In some cases, ObliqueSplitRecord
+        # might be used. The split pointer here knows the size of the underlying Record
+        # because the subclassed splitter will define "pointer_size" accordingly.
         cdef SplitRecord* split_ptr = <SplitRecord *>malloc(splitter.pointer_size())
 
         cdef intp_t node_id
