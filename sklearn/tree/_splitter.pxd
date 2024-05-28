@@ -30,7 +30,7 @@ from ..utils._typedefs cimport float32_t, float64_t, intp_t, int8_t, int32_t, ui
 # SO WHERE DOES THAT LEAVE US
 # - we can transform these into cpp vectors of structs
 #   and with some minor casting irritations everything else works ok
-ctypedef void* SplitConditionParameters
+ctypedef void* SplitConditionEnv
 ctypedef bint (*SplitConditionFunction)(
     Splitter splitter,
     SplitRecord* current_split,
@@ -38,15 +38,15 @@ ctypedef bint (*SplitConditionFunction)(
     bint missing_go_to_left,
     float64_t lower_bound,
     float64_t upper_bound,
-    SplitConditionParameters split_condition_parameters
+    SplitConditionEnv split_condition_env
 ) noexcept nogil
 
-cdef struct SplitConditionTuple:
+cdef struct SplitConditionClosure:
     SplitConditionFunction f
-    SplitConditionParameters p
+    SplitConditionEnv e
 
 cdef class SplitCondition:
-    cdef SplitConditionTuple t
+    cdef SplitConditionClosure c
 
 cdef class MinSamplesLeafCondition(SplitCondition):
     pass
@@ -150,8 +150,8 @@ cdef class Splitter(BaseSplitter):
     cdef SplitCondition min_weight_leaf_condition
     cdef SplitCondition monotonic_constraint_condition
 
-    cdef vector[SplitConditionTuple] presplit_conditions
-    cdef vector[SplitConditionTuple] postsplit_conditions
+    cdef vector[SplitConditionClosure] presplit_conditions
+    cdef vector[SplitConditionClosure] postsplit_conditions
 
     cdef int init(
         self,

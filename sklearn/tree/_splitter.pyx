@@ -51,7 +51,7 @@ cdef bint min_sample_leaf_condition(
     bint missing_go_to_left,
     float64_t lower_bound,
     float64_t upper_bound,
-    SplitConditionParameters split_condition_parameters
+    SplitConditionEnv split_condition_env
 ) noexcept nogil:
     cdef intp_t min_samples_leaf = splitter.min_samples_leaf
     cdef intp_t end_non_missing = splitter.end - n_missing
@@ -72,8 +72,8 @@ cdef bint min_sample_leaf_condition(
 
 cdef class MinSamplesLeafCondition(SplitCondition):
     def __cinit__(self):
-        self.t.f = min_sample_leaf_condition
-        self.t.p = NULL # min_samples is stored in splitter, which is already passed to f
+        self.c.f = min_sample_leaf_condition
+        self.c.e = NULL # min_samples is stored in splitter, which is already passed to f
 
 cdef bint min_weight_leaf_condition(
     Splitter splitter,
@@ -82,7 +82,7 @@ cdef bint min_weight_leaf_condition(
     bint missing_go_to_left,
     float64_t lower_bound,
     float64_t upper_bound,
-    SplitConditionParameters split_condition_parameters
+    SplitConditionEnv split_condition_env
 ) noexcept nogil:
     cdef float64_t min_weight_leaf = splitter.min_weight_leaf
 
@@ -95,8 +95,8 @@ cdef bint min_weight_leaf_condition(
 
 cdef class MinWeightLeafCondition(SplitCondition):
     def __cinit__(self):
-        self.t.f = min_weight_leaf_condition
-        self.t.p = NULL # min_weight_leaf is stored in splitter, which is already passed to f
+        self.c.f = min_weight_leaf_condition
+        self.c.e = NULL # min_weight_leaf is stored in splitter, which is already passed to f
 
 cdef bint monotonic_constraint_condition(
     Splitter splitter,
@@ -105,7 +105,7 @@ cdef bint monotonic_constraint_condition(
     bint missing_go_to_left,
     float64_t lower_bound,
     float64_t upper_bound,
-    SplitConditionParameters split_condition_parameters
+    SplitConditionEnv split_condition_env
 ) noexcept nogil:
     if (
         splitter.with_monotonic_cst and
@@ -122,10 +122,10 @@ cdef bint monotonic_constraint_condition(
 
 cdef class MonotonicConstraintCondition(SplitCondition):
     def __cinit__(self):
-        self.t.f = monotonic_constraint_condition
-        self.t.p = NULL
+        self.c.f = monotonic_constraint_condition
+        self.c.e = NULL
 
-# cdef struct HasDataParameters:
+# cdef struct HasDataEnv:
 #     int min_samples
 
 # cdef bint has_data_condition(
@@ -135,24 +135,24 @@ cdef class MonotonicConstraintCondition(SplitCondition):
 #     bint missing_go_to_left,
 #     float64_t lower_bound,
 #     float64_t upper_bound,
-#     SplitConditionParameters split_condition_parameters
+#     SplitConditionEnv split_condition_env
 # ) noexcept nogil:
-#     cdef HasDataParameters* p = <HasDataParameters*>split_condition_parameters
-#     return splitter.n_samples >= p.min_samples
+#     cdef HasDataEnv* e = <HasDataEnv*>split_condition_env
+#     return splitter.n_samples >= e.min_samples
 
 # cdef class HasDataCondition(SplitCondition):
 #     def __cinit__(self, int min_samples):
-#         self.t.f = has_data_condition
-#         self.t.p = malloc(sizeof(HasDataParameters))
-#         (<HasDataParameters*>self.t.p).min_samples = min_samples
+#         self.c.f = has_data_condition
+#         self.c.e = malloc(sizeof(HasDataEnv))
+#         (<HasDataEnv*>self.c.e).min_samples = min_samples
     
 #     def __dealloc__(self):
-#         if self.t.p is not NULL:
-#             free(self.t.p)
+#         if self.c.e is not NULL:
+#             free(self.c.e)
         
 #         super.__dealloc__(self)
 
-# cdef struct AlphaRegularityParameters:
+# cdef struct AlphaRegularityEnv:
 #     float64_t alpha
 
 # cdef bint alpha_regularity_condition(
@@ -162,21 +162,21 @@ cdef class MonotonicConstraintCondition(SplitCondition):
 #     bint missing_go_to_left,
 #     float64_t lower_bound,
 #     float64_t upper_bound,
-#     SplitConditionParameters split_condition_parameters
+#     SplitConditionEnv split_condition_env
 # ) noexcept nogil:
-#     cdef AlphaRegularityParameters* p = <AlphaRegularityParameters*>split_condition_parameters
+#     cdef AlphaRegularityEnv* e = <AlphaRegularityEnv*>split_condition_env
 
 #     return True
 
 # cdef class AlphaRegularityCondition(SplitCondition):
 #     def __cinit__(self, float64_t alpha):
-#         self.t.f = alpha_regularity_condition
-#         self.t.p = malloc(sizeof(AlphaRegularityParameters))
-#         (<AlphaRegularityParameters*>self.t.p).alpha = alpha
+#         self.c.f = alpha_regularity_condition
+#         self.c.e = malloc(sizeof(AlphaRegularityEnv))
+#         (<AlphaRegularityEnv*>self.c.e).alpha = alpha
     
 #     def __dealloc__(self):
-#         if self.t.p is not NULL:
-#             free(self.t.p)
+#         if self.c.e is not NULL:
+#             free(self.c.e)
         
 #         super.__dealloc__(self)
 
@@ -353,23 +353,23 @@ cdef class Splitter(BaseSplitter):
         )
 
         offset = 0
-        self.presplit_conditions[offset] = self.min_samples_leaf_condition.t
-        self.postsplit_conditions[offset] = self.min_weight_leaf_condition.t
+        self.presplit_conditions[offset] = self.min_samples_leaf_condition.c
+        self.postsplit_conditions[offset] = self.min_weight_leaf_condition.c
         offset += 1
 
         if(self.with_monotonic_cst):
             self.monotonic_constraint_condition = MonotonicConstraintCondition()
-            self.presplit_conditions[offset] = self.monotonic_constraint_condition.t
-            self.postsplit_conditions[offset] = self.monotonic_constraint_condition.t
+            self.presplit_conditions[offset] = self.monotonic_constraint_condition.c
+            self.postsplit_conditions[offset] = self.monotonic_constraint_condition.c
             offset += 1
 
         if presplit_conditions is not None:
             for i in range(len(presplit_conditions)):
-                self.presplit_conditions[i + offset] = presplit_conditions[i].t
+                self.presplit_conditions[i + offset] = presplit_conditions[i].c
         
         if postsplit_conditions is not None:
             for i in range(len(postsplit_conditions)):
-                self.postsplit_conditions[i + offset] = postsplit_conditions[i].t
+                self.postsplit_conditions[i + offset] = postsplit_conditions[i].c
 
 
     def __reduce__(self):
@@ -789,7 +789,7 @@ cdef inline intp_t node_split_best(
                 for condition in splitter.presplit_conditions:
                     if not condition.f(
                         splitter, &current_split, n_missing, missing_go_to_left,
-                        lower_bound, upper_bound, condition.p
+                        lower_bound, upper_bound, condition.e
                     ):
                         conditions_hold = False
                         break
@@ -818,7 +818,7 @@ cdef inline intp_t node_split_best(
                 for condition in splitter.postsplit_conditions:
                     if not condition.f(
                         splitter, &current_split, n_missing, missing_go_to_left,
-                        lower_bound, upper_bound, condition.p
+                        lower_bound, upper_bound, condition.e
                     ):
                         conditions_hold = False
                         break
