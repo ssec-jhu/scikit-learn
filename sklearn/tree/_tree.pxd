@@ -100,7 +100,7 @@ cdef struct BuildEnv:
     intp_t node_id
     float64_t right_child_min, left_child_min, right_child_max, left_child_max
 
-    SplitRecord* split_ptr
+    SplitRecord* split
 
     float64_t middle_value
     bint is_leaf

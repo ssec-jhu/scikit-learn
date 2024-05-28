@@ -303,7 +303,6 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
         X, y, sample_weight = self._check_input(X, y, sample_weight)
 
         cdef Splitter splitter = self.splitter
-        cdef SplitRecord split
         cdef cnp.ndarray initial_roots = self.initial_roots
 
         cdef BuildEnv e
@@ -340,7 +339,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
         e.start = 0
         e.end = 0
         e.n_node_samples = splitter.n_samples
-        e.split_ptr = <SplitRecord *>malloc(splitter.pointer_size())
+        e.split = self.splitter.create_split_record()
 
         e.max_depth_seen = -1 if e.first else tree.max_depth
 
@@ -413,24 +412,20 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                 if not e.is_leaf:
                     splitter.node_split(
                         &e.parent_record,
-                        e.split_ptr,
+                        e.split,
                     )
-
-                    # assign local copy of SplitRecord to assign
-                    # pos, improvement, and impurity scores
-                    split = deref(e.split_ptr)
 
                     # If EPSILON=0 in the below comparison, float precision
                     # issues stop splitting, producing trees that are
                     # dissimilar to v0.18
-                    e.is_leaf = (e.is_leaf or split.pos >= e.end or
-                               (split.improvement + EPSILON <
+                    e.is_leaf = (e.is_leaf or e.split.pos >= e.end or
+                               (e.split.improvement + EPSILON <
                                 e.min_impurity_decrease))
 
                 e.node_id = e.add_or_update_node(
-                    tree, e.parent, e.is_left, e.is_leaf, e.split_ptr,
+                    tree, e.parent, e.is_left, e.is_leaf, e.split,
                     e.parent_record.impurity, e.n_node_samples, e.weighted_n_node_samples,
-                    split.missing_go_to_left
+                    e.split.missing_go_to_left
                 )
 
                 if e.node_id == INTPTR_MAX:
@@ -450,7 +445,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                 if not e.is_leaf:
                     if (
                         not splitter.with_monotonic_cst or
-                        splitter.monotonic_cst[split.feature] == 0
+                        splitter.monotonic_cst[e.split.feature] == 0
                     ):
                         # Split on a feature with no monotonicity constraint
 
@@ -459,7 +454,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                         # node value clipping.
                         e.left_child_min = e.right_child_min = e.parent_record.lower_bound
                         e.left_child_max = e.right_child_max = e.parent_record.upper_bound
-                    elif splitter.monotonic_cst[split.feature] == 1:
+                    elif splitter.monotonic_cst[e.split.feature] == 1:
                         # Split on a feature with monotonic increase constraint
                         e.left_child_min = e.parent_record.lower_bound
                         e.right_child_max = e.parent_record.upper_bound
@@ -469,7 +464,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                         e.middle_value = splitter.criterion.middle_value()
                         e.right_child_min = e.middle_value
                         e.left_child_max = e.middle_value
-                    else:  # i.e. splitter.monotonic_cst[split.feature] == -1
+                    else:  # i.e. splitter.monotonic_cst[e.split.feature] == -1
                         # Split on a feature with monotonic decrease constraint
                         e.right_child_min = e.parent_record.lower_bound
                         e.left_child_max = e.parent_record.upper_bound
@@ -482,12 +477,12 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
 
                     # Push right child on stack
                     e.builder_stack.push({
-                        "start": split.pos,
+                        "start": e.split.pos,
                         "end": e.end,
                         "depth": e.depth + 1,
                         "parent": e.node_id,
                         "is_left": 0,
-                        "impurity": split.impurity_right,
+                        "impurity": e.split.impurity_right,
                         "n_constant_features": e.parent_record.n_constant_features,
                         "lower_bound": e.right_child_min,
                         "upper_bound": e.right_child_max,
@@ -496,11 +491,11 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                     # Push left child on stack
                     e.builder_stack.push({
                         "start": e.start,
-                        "end": split.pos,
+                        "end": e.split.pos,
                         "depth": e.depth + 1,
                         "parent": e.node_id,
                         "is_left": 1,
-                        "impurity": split.impurity_left,
+                        "impurity": e.split.impurity_left,
                         "n_constant_features": e.parent_record.n_constant_features,
                         "lower_bound": e.left_child_min,
                         "upper_bound": e.left_child_max,
@@ -546,24 +541,20 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                 if not e.is_leaf:
                     splitter.node_split(
                         &e.parent_record,
-                        e.split_ptr,
+                        e.split,
                     )
-
-                    # assign local copy of SplitRecord to assign
-                    # pos, improvement, and impurity scores
-                    split = deref(e.split_ptr)
 
                     # If EPSILON=0 in the below comparison, float precision
                     # issues stop splitting, producing trees that are
                     # dissimilar to v0.18
-                    e.is_leaf = (e.is_leaf or split.pos >= e.end or
-                               (split.improvement + EPSILON <
+                    e.is_leaf = (e.is_leaf or e.split.pos >= e.end or
+                               (e.split.improvement + EPSILON <
                                 e.min_impurity_decrease))
 
                 e.node_id = e.add_or_update_node(
-                    tree, e.parent, e.is_left, e.is_leaf, e.split_ptr,
+                    tree, e.parent, e.is_left, e.is_leaf, e.split,
                     e.parent_record.impurity, e.n_node_samples,
-                    e.weighted_n_node_samples, split.missing_go_to_left
+                    e.weighted_n_node_samples, e.split.missing_go_to_left
                 )
 
                 if e.node_id == INTPTR_MAX:
@@ -583,7 +574,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                 if not e.is_leaf:
                     if (
                         not splitter.with_monotonic_cst or
-                        splitter.monotonic_cst[split.feature] == 0
+                        splitter.monotonic_cst[e.split.feature] == 0
                     ):
                         # Split on a feature with no monotonicity constraint
 
@@ -592,7 +583,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                         # node value clipping.
                         e.left_child_min = e.right_child_min = e.parent_record.lower_bound
                         e.left_child_max = e.right_child_max = e.parent_record.upper_bound
-                    elif splitter.monotonic_cst[split.feature] == 1:
+                    elif splitter.monotonic_cst[e.split.feature] == 1:
                         # Split on a feature with monotonic increase constraint
                         e.left_child_min = e.parent_record.lower_bound
                         e.right_child_max = e.parent_record.upper_bound
@@ -602,7 +593,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                         e.middle_value = splitter.criterion.middle_value()
                         e.right_child_min = e.middle_value
                         e.left_child_max = e.middle_value
-                    else:  # i.e. splitter.monotonic_cst[split.feature] == -1
+                    else:  # i.e. splitter.monotonic_cst[e.split.feature] == -1
                         # Split on a feature with monotonic decrease constraint
                         e.right_child_min = e.parent_record.lower_bound
                         e.left_child_max = e.parent_record.upper_bound
@@ -615,12 +606,12 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
 
                     # Push right child on stack
                     e.builder_stack.push({
-                        "start": split.pos,
+                        "start": e.split.pos,
                         "end": e.end,
                         "depth": e.depth + 1,
                         "parent": e.node_id,
                         "is_left": 0,
-                        "impurity": split.impurity_right,
+                        "impurity": e.split.impurity_right,
                         "n_constant_features": e.parent_record.n_constant_features,
                         "lower_bound": e.right_child_min,
                         "upper_bound": e.right_child_max,
@@ -629,11 +620,11 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                     # Push left child on stack
                     e.builder_stack.push({
                         "start": e.start,
-                        "end": split.pos,
+                        "end": e.split.pos,
                         "depth": e.depth + 1,
                         "parent": e.node_id,
                         "is_left": 1,
-                        "impurity": split.impurity_left,
+                        "impurity": e.split.impurity_left,
                         "n_constant_features": e.parent_record.n_constant_features,
                         "lower_bound": e.left_child_min,
                         "upper_bound": e.left_child_max,
@@ -652,7 +643,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                 tree.max_depth = e.max_depth_seen
 
         # free the memory created for the SplitRecord pointer
-        free(e.split_ptr)
+        free(e.split)
 
         if e.rc == -1:
             raise MemoryError()
