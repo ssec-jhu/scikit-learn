@@ -71,6 +71,13 @@ cdef struct SplitRecord:
     unsigned char missing_go_to_left  # Controls if missing values go to the left node.
     intp_t n_missing            # Number of missing values for the feature being split on
 
+ctypedef void* SplitRecordFactoryEnv
+ctypedef SplitRecord* (*SplitRecordFactory)(SplitRecordFactoryEnv env) except NULL nogil
+
+cdef struct SplitRecordFactoryClosure:
+    SplitRecordFactory f
+    SplitRecordFactoryEnv e
+
 cdef class BaseSplitter:
     """Abstract interface for splitter."""
 
@@ -99,6 +106,8 @@ cdef class BaseSplitter:
     cdef intp_t end                      # End position for the current node
 
     cdef const float64_t[:] sample_weight
+
+    cdef SplitRecordFactoryClosure split_record_factory
 
     # The samples vector `samples` is maintained by the Splitter object such
     # that the samples contained in a node are contiguous. With this setting,
@@ -131,6 +140,7 @@ cdef class BaseSplitter:
     cdef void node_value(self, float64_t* dest) noexcept nogil
     cdef float64_t node_impurity(self) noexcept nogil
     cdef intp_t pointer_size(self) noexcept nogil
+    cdef SplitRecord* create_split_record(self) except NULL nogil
 
 cdef class Splitter(BaseSplitter):
     """Base class for supervised splitters."""

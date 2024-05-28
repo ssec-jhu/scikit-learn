@@ -20,7 +20,7 @@
 from cython cimport final
 from libc.math cimport isnan
 from libc.stdint cimport uintptr_t
-from libc.stdlib cimport qsort, free
+from libc.stdlib cimport qsort, free, malloc
 from libc.string cimport memcpy
 
 from ._criterion cimport Criterion
@@ -202,6 +202,9 @@ cdef inline void _init_split(SplitRecord* self, intp_t start_pos) noexcept nogil
     self.missing_go_to_left = False
     self.n_missing = 0
 
+cdef SplitRecord* _base_split_record_factory(SplitRecordFactoryEnv env) except NULL nogil:
+    return <SplitRecord*>malloc(sizeof(SplitRecord));
+
 cdef class BaseSplitter:
     """This is an abstract interface for splitters.
 
@@ -286,6 +289,9 @@ cdef class BaseSplitter:
         `SplitRecord`.
         """
         return sizeof(SplitRecord)
+    
+    cdef SplitRecord* create_split_record(self) except NULL nogil:
+        return self.split_record_factory.f(self.split_record_factory.e)
 
 cdef class Splitter(BaseSplitter):
     """Abstract interface for supervised splitters."""
@@ -352,7 +358,7 @@ cdef class Splitter(BaseSplitter):
             + (2 if self.with_monotonic_cst else 1)
         )
 
-        offset = 0
+        cdef int offset = 0
         self.presplit_conditions[offset] = self.min_samples_leaf_condition.c
         self.postsplit_conditions[offset] = self.min_weight_leaf_condition.c
         offset += 1
@@ -363,6 +369,7 @@ cdef class Splitter(BaseSplitter):
             self.postsplit_conditions[offset] = self.monotonic_constraint_condition.c
             offset += 1
 
+        cdef int i
         if presplit_conditions is not None:
             for i in range(len(presplit_conditions)):
                 self.presplit_conditions[i + offset] = presplit_conditions[i].c
@@ -370,6 +377,9 @@ cdef class Splitter(BaseSplitter):
         if postsplit_conditions is not None:
             for i in range(len(postsplit_conditions)):
                 self.postsplit_conditions[i + offset] = postsplit_conditions[i].c
+        
+        self.split_record_factory.f = _base_split_record_factory
+        self.split_record_factory.e = NULL
 
 
     def __reduce__(self):
