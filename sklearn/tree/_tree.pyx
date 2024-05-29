@@ -294,15 +294,18 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                             (e.split.improvement + EPSILON <
                             e.min_impurity_decrease))
 
-            e.node_id = tree._add_node(
-                e.parent, e.is_left, e.is_leaf, e.split,
-                e.parent_record.impurity, e.n_node_samples, e.weighted_n_node_samples,
-                e.split.missing_go_to_left
-            ) if e.add_or_update else tree._update_node(                
-                e.parent, e.is_left, e.is_leaf, e.split,
-                e.parent_record.impurity, e.n_node_samples, e.weighted_n_node_samples,
-                e.split.missing_go_to_left
-            )
+            if e.add_or_update:
+                e.node_id = tree._add_node(
+                    e.parent, e.is_left, e.is_leaf, e.split,
+                    e.parent_record.impurity, e.n_node_samples, e.weighted_n_node_samples,
+                    e.split.missing_go_to_left
+                )
+            else:
+                e.node_id = tree._update_node(                
+                    e.parent, e.is_left, e.is_leaf, e.split,
+                    e.parent_record.impurity, e.n_node_samples, e.weighted_n_node_samples,
+                    e.split.missing_go_to_left
+                )
 
             if e.node_id == INTPTR_MAX:
                 e.rc = -1
