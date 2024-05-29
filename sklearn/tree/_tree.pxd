@@ -115,7 +115,7 @@ cdef struct BuildEnv:
 
     ParentInfo parent_record
     
-    AddOrUpdateNodeFunc add_or_update_node
+    bint add_or_update
 
 
 cdef class BaseTree:
