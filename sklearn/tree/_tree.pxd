@@ -43,18 +43,6 @@ cdef struct ParentInfo:
     float64_t impurity              # the impurity of the parent
     intp_t n_constant_features      # the number of constant features found in parent
 
-ctypedef intp_t (*AddOrUpdateNodeFunc)(
-    Tree tree,
-    intp_t parent,
-    bint is_left,
-    bint is_leaf,
-    SplitRecord* split_node,
-    float64_t impurity,
-    intp_t n_node_samples,
-    float64_t weighted_n_node_samples,
-    unsigned char missing_go_to_left
-) except -1 nogil
-
 # A record on the stack for depth-first tree growing
 cdef struct StackRecord:
     intp_t start
@@ -114,8 +102,6 @@ cdef struct BuildEnv:
     StackRecord stack_record
 
     ParentInfo parent_record
-    
-    AddOrUpdateNodeFunc add_or_update_node
 
 
 cdef class BaseTree:
