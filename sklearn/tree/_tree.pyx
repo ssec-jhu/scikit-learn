@@ -22,6 +22,8 @@ from libc.math cimport isnan
 from libc.stdint cimport INTPTR_MAX
 from libc.stdlib cimport free, malloc
 from libc.string cimport memcpy, memset
+from libcpp.vector cimport vector
+from libcpp.stack cimport stack
 from libcpp cimport bool
 from libcpp.algorithm cimport pop_heap, push_heap
 from libcpp.vector cimport vector
@@ -47,15 +49,6 @@ cdef extern from "numpy/arrayobject.h":
                                 cnp.npy_intp* strides,
                                 void* data, intp_t flags, object obj)
     intp_t PyArray_SetBaseObject(cnp.ndarray arr, PyObject* obj)
-
-cdef extern from "<stack>" namespace "std" nogil:
-    cdef cppclass stack[T]:
-        ctypedef T value_type
-        stack() except +
-        bint empty()
-        void pop()
-        void push(T&) except +  # Raise c++ exception for bad_alloc -> MemoryError
-        T& top()
 
 # =============================================================================
 # Types and constants
