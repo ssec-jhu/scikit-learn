@@ -46,7 +46,17 @@ cdef struct SplitConditionClosure:
     SplitConditionEnv e
 
 cdef class SplitCondition:
-    cdef SplitConditionClosure c
+    cdef bint holds(
+        self,
+        Splitter splitter,
+        intp_t feature,
+        intp_t pos,
+        float64_t split_value,
+        intp_t n_missing,
+        bint missing_go_to_left,
+        float64_t lower_bound,
+        float64_t upper_bound
+        ) noexcept nogil
 
 cdef class MinSamplesLeafCondition(SplitCondition):
     pass
@@ -146,12 +156,8 @@ cdef class Splitter(BaseSplitter):
     cdef const int8_t[:] monotonic_cst
     cdef bint with_monotonic_cst
 
-    cdef SplitCondition min_samples_leaf_condition
-    cdef SplitCondition min_weight_leaf_condition
-    cdef SplitCondition monotonic_constraint_condition
-
-    cdef vector[SplitConditionClosure] presplit_conditions
-    cdef vector[SplitConditionClosure] postsplit_conditions
+    cdef vector[SplitCondition] presplit_conditions
+    cdef vector[SplitCondition] postsplit_conditions
 
     cdef int init(
         self,
