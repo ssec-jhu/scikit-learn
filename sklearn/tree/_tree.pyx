@@ -166,6 +166,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
         float64_t min_impurity_decrease,
         unsigned char store_leaf_values=False,
         cnp.ndarray initial_roots=None,
+        TreeBuildEventHandler[:] listeners=None
     ):
         self.splitter = splitter
         self.min_samples_split = min_samples_split
@@ -175,6 +176,15 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
         self.min_impurity_decrease = min_impurity_decrease
         self.store_leaf_values = store_leaf_values
         self.initial_roots = initial_roots
+
+        cdef int i
+        if(listeners is not None): 
+            self.listeners.resize(len(listeners))
+            for i in range(len(listeners)):
+                self.listeners[i] = listeners[i].c
+        else:
+            self.listeners.resize(0)
+
 
     def __reduce__(self):
         """Reduce re-implementation, for pickling."""
@@ -251,7 +261,19 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
         # convert dict to numpy array and store value
         self.initial_roots = np.array(list(false_roots.items()))
 
+    cdef void _fire_event(
+        self,
+        vector[TreeBuildEventHandlerClosure]& listeners,
+        TreeBuildEvent evt,
+        BuildEnv* e
+        ) noexcept nogil:
+        for listener in listeners:
+            listener.f(evt, e, listener.e)
+
     cdef void _build_body(self, Tree tree, Splitter splitter, BuildEnv* e, bint update) noexcept nogil:
+        cdef TreeBuildEvent evt
+        cdef vector[TreeBuildEventHandlerClosure] listeners = self.listeners
+
         while not e.target_stack.empty():
             e.stack_record = e.target_stack.top()
             e.target_stack.pop()
@@ -300,16 +322,20 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                     e.parent_record.impurity, e.n_node_samples, e.weighted_n_node_samples,
                     e.split.missing_go_to_left
                 )
+                evt = TreeBuildEvent.UPDATE_NODE
             else:
                 e.node_id = tree._add_node(
                     e.parent, e.is_left, e.is_leaf, e.split,
                     e.parent_record.impurity, e.n_node_samples, e.weighted_n_node_samples,
                     e.split.missing_go_to_left
                 )
+                evt = TreeBuildEvent.ADD_NODE
 
             if e.node_id == INTPTR_MAX:
                 e.rc = -1
                 break
+
+            self._fire_event(listeners, evt, e)
 
             # Store value for all nodes, to facilitate tree/model
             # inspection and interpretation

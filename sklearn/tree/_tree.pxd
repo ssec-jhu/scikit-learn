@@ -103,6 +103,24 @@ cdef struct BuildEnv:
 
     ParentInfo parent_record
 
+cdef enum TreeBuildEvent:
+    ADD_NODE = 1
+    UPDATE_NODE = 2
+
+ctypedef void* EventHandlerEnv
+ctypedef bint (*TreeBuildEventHandlerFunction)(
+    TreeBuildEvent evt,
+    BuildEnv* build_env,
+    EventHandlerEnv handler_env
+) noexcept nogil
+
+cdef struct TreeBuildEventHandlerClosure:
+    TreeBuildEventHandlerFunction f
+    EventHandlerEnv e
+
+cdef class TreeBuildEventHandler:
+    cdef TreeBuildEventHandlerClosure c
+
 
 cdef class BaseTree:
 
@@ -236,6 +254,9 @@ cdef class TreeBuilder:
 
     cdef unsigned char store_leaf_values    # Whether to store leaf values
 
+    cdef vector[TreeBuildEventHandlerClosure] listeners
+
+
     cpdef initialize_node_queue(
       self,
       Tree tree,
@@ -251,7 +272,7 @@ cdef class TreeBuilder:
         object X,
         const float64_t[:, ::1] y,
         const float64_t[:] sample_weight=*,
-        const unsigned char[::1] missing_values_in_feature_mask=*,
+        const unsigned char[::1] missing_values_in_feature_mask=*
     )
 
     cdef _check_input(

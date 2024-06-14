@@ -48,15 +48,6 @@ cdef struct SplitConditionClosure:
 cdef class SplitCondition:
     cdef SplitConditionClosure c
 
-cdef class MinSamplesLeafCondition(SplitCondition):
-    pass
-
-cdef class MinWeightLeafCondition(SplitCondition):
-    pass
-
-cdef class MonotonicConstraintCondition(SplitCondition):
-    pass
-
 
 cdef struct SplitRecord:
     # Data to track sample split
