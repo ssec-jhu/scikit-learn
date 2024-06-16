@@ -19,6 +19,9 @@ from libcpp.vector cimport vector
 
 from ..utils._typedefs cimport float32_t, float64_t, intp_t, int32_t, uint32_t
 
+from ._events cimport EventType, EventData, EventBroker, EventHandler
+from ._events cimport EventHandlerClosure, EventHandlerEnv, EventHandlerFunction
+
 from ._splitter cimport SplitRecord, Splitter
 
 
@@ -107,7 +110,7 @@ cdef enum TreeBuildEvent:
     ADD_NODE = 1
     UPDATE_NODE = 2
 
-ctypedef void* EventHandlerEnv
+# ctypedef void* EventHandlerEnv
 ctypedef bint (*TreeBuildEventHandlerFunction)(
     TreeBuildEvent evt,
     BuildEnv* build_env,
@@ -119,6 +122,7 @@ cdef struct TreeBuildEventHandlerClosure:
     EventHandlerEnv e
 
 cdef class TreeBuildEventHandler:
+    cdef int[:] events
     cdef TreeBuildEventHandlerClosure c
 
 
@@ -254,7 +258,8 @@ cdef class TreeBuilder:
 
     cdef unsigned char store_leaf_values    # Whether to store leaf values
 
-    cdef vector[TreeBuildEventHandlerClosure] listeners
+    # cdef vector[vector[EventHandlerClosure]] listeners
+    cdef EventBroker event_broker
 
 
     cpdef initialize_node_queue(

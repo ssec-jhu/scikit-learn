@@ -26,6 +26,7 @@ from libcpp cimport bool
 from libcpp.algorithm cimport pop_heap, push_heap
 from libcpp.vector cimport vector
 
+
 import struct
 
 import numpy as np
@@ -166,7 +167,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
         float64_t min_impurity_decrease,
         unsigned char store_leaf_values=False,
         cnp.ndarray initial_roots=None,
-        TreeBuildEventHandler[:] listeners=None
+        EventHandler[:] listeners=None
     ):
         self.splitter = splitter
         self.min_samples_split = min_samples_split
@@ -177,13 +178,10 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
         self.store_leaf_values = store_leaf_values
         self.initial_roots = initial_roots
 
-        cdef int i
-        if(listeners is not None): 
-            self.listeners.resize(len(listeners))
-            for i in range(len(listeners)):
-                self.listeners[i] = listeners[i].c
-        else:
-            self.listeners.resize(0)
+#        cdef list etl = [TreeBuildEvent.ADD_NODE, TreeBuildEvent.UPDATE_NODE]
+#        cdef int[:] event_types = etl
+        self.event_broker = EventBroker(listeners, [TreeBuildEvent.ADD_NODE, TreeBuildEvent.UPDATE_NODE])
+#        init_event_broker(self.event_broker, listeners, self.listeners, event_types)
 
 
     def __reduce__(self):
@@ -261,18 +259,9 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
         # convert dict to numpy array and store value
         self.initial_roots = np.array(list(false_roots.items()))
 
-    cdef void _fire_event(
-        self,
-        vector[TreeBuildEventHandlerClosure]& listeners,
-        TreeBuildEvent evt,
-        BuildEnv* e
-        ) noexcept nogil:
-        for listener in listeners:
-            listener.f(evt, e, listener.e)
 
-    cdef void _build_body(self, Tree tree, Splitter splitter, BuildEnv* e, bint update) noexcept nogil:
+    cdef void _build_body(self, EventBroker broker, Tree tree, Splitter splitter, BuildEnv* e, bint update) noexcept nogil:
         cdef TreeBuildEvent evt
-        cdef vector[TreeBuildEventHandlerClosure] listeners = self.listeners
 
         while not e.target_stack.empty():
             e.stack_record = e.target_stack.top()
@@ -335,7 +324,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                 e.rc = -1
                 break
 
-            self._fire_event(listeners, evt, e)
+            broker.fire_event(evt, e)
 
             # Store value for all nodes, to facilitate tree/model
             # inspection and interpretation
@@ -502,10 +491,10 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
 
         with nogil:
             e.target_stack = &e.update_stack
-            self._build_body(tree, splitter, &e, 1)
+            self._build_body(self.event_broker, tree, splitter, &e, 1)
 
             e.target_stack = &e.builder_stack
-            self._build_body(tree, splitter, &e, 0)
+            self._build_body(self.event_broker, tree, splitter, &e, 0)
 
             if e.rc >= 0:
                 e.rc = tree._resize_c(tree.node_count)
