@@ -156,8 +156,12 @@ cdef class Splitter(BaseSplitter):
     cdef const int8_t[:] monotonic_cst
     cdef bint with_monotonic_cst
 
-    cdef vector[SplitCondition] presplit_conditions
-    cdef vector[SplitCondition] postsplit_conditions
+    cdef MinSamplesLeafCondition min_samples_leaf_condition
+    cdef MinWeightLeafCondition min_weight_leaf_condition
+    cdef MonotonicConstraintCondition monotonic_constraint_condition
+    
+    cdef vector[void*] presplit_conditions
+    cdef vector[void*] postsplit_conditions
 
     cdef int init(
         self,

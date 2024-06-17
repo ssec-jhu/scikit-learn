@@ -49,9 +49,10 @@ cdef class SplitCondition:
         raise NotImplementedError
     
     cdef bint holds(
-        self
+        self,
         Splitter splitter,
         intp_t feature,
+        intp_t pos,
         float64_t split_value,
         intp_t n_missing,
         bint missing_go_to_left,
@@ -73,8 +74,7 @@ cdef class MinSamplesLeafCondition(SplitCondition):
         intp_t n_missing,
         bint missing_go_to_left,
         float64_t lower_bound,
-        float64_t upper_bound,
-        SplitConditionEnv split_condition_env
+        float64_t upper_bound
     ) noexcept nogil:
         cdef intp_t min_samples_leaf = splitter.min_samples_leaf
         cdef intp_t end_non_missing = splitter.end - n_missing
@@ -99,6 +99,7 @@ cdef class MinWeightLeafCondition(SplitCondition):
         pass
 
     cdef bint holds(
+        self,
         Splitter splitter,
         intp_t feature,
         intp_t pos,
@@ -106,8 +107,7 @@ cdef class MinWeightLeafCondition(SplitCondition):
         intp_t n_missing,
         bint missing_go_to_left,
         float64_t lower_bound,
-        float64_t upper_bound,
-        SplitConditionEnv split_condition_env
+        float64_t upper_bound
     ) noexcept nogil:
         cdef float64_t min_weight_leaf = splitter.min_weight_leaf
 
@@ -123,6 +123,7 @@ cdef class MonotonicConstraintCondition(SplitCondition):
         pass
 
     cdef bint holds(
+        self,
         Splitter splitter,
         intp_t feature,
         intp_t pos,
@@ -130,14 +131,13 @@ cdef class MonotonicConstraintCondition(SplitCondition):
         intp_t n_missing,
         bint missing_go_to_left,
         float64_t lower_bound,
-        float64_t upper_bound,
-        SplitConditionEnv split_condition_env
+        float64_t upper_bound
     ) noexcept nogil:
         if (
             splitter.with_monotonic_cst and
-            splitter.monotonic_cst[current_split.feature] != 0 and
+            splitter.monotonic_cst[feature] != 0 and
             not splitter.criterion.check_monotonicity(
-                splitter.monotonic_cst[current_split.feature],
+                splitter.monotonic_cst[feature],
                 lower_bound,
                 upper_bound,
             )
@@ -305,22 +305,22 @@ cdef class Splitter(BaseSplitter):
         )
 
         offset = 0
-        self.presplit_conditions[offset] = MinSamplesLeafCondition()
-        self.postsplit_conditions[offset] = MinWeightLeafCondition()
+        self.presplit_conditions[offset] = <void*>self.min_samples_leaf_condition
+        self.postsplit_conditions[offset] = <void*>self.min_weight_leaf_condition
         offset += 1
 
         if(self.with_monotonic_cst):
-            self.presplit_conditions[offset] = MonotonicConstraintCondition()
-            self.postsplit_conditions[offset] = MonotonicConstraintCondition()
+            self.presplit_conditions[offset] = <void*>self.monotonic_constraint_condition
+            self.postsplit_conditions[offset] = <void*>self.monotonic_constraint_condition
             offset += 1
 
         if presplit_conditions is not None:
             for i in range(len(presplit_conditions)):
-                self.presplit_conditions[i + offset] = presplit_conditions[i]
+                self.presplit_conditions[i + offset] = <void*>presplit_conditions[i]
         
         if postsplit_conditions is not None:
             for i in range(len(postsplit_conditions)):
-                self.postsplit_conditions[i + offset] = postsplit_conditions[i]
+                self.postsplit_conditions[i + offset] = <void*>postsplit_conditions[i]
 
 
     def __reduce__(self):
@@ -719,13 +719,13 @@ cdef inline intp_t node_split_best(
 
                 conditions_hold = True
                 for condition in splitter.presplit_conditions:
-                    if not condition.holds(
+                    if not (<SplitCondition>condition).holds(
                         splitter,
                         current_split.feature, current_split.pos,
                         current_split.threshold,
                         n_missing, missing_go_to_left,
-                        lower_bound, upper_bound, condition.e
-                    ):
+                        lower_bound, upper_bound
+                        ):
                         conditions_hold = False
                         break
                 
@@ -736,12 +736,12 @@ cdef inline intp_t node_split_best(
 
                 conditions_hold = True
                 for condition in splitter.postsplit_conditions:
-                    if not condition.f(
+                    if not (<SplitCondition>condition).holds(
                         splitter, current_split.feature, current_split.pos,
                         current_split.threshold,
                         n_missing, missing_go_to_left,
-                        lower_bound, upper_bound, condition.e
-                    ):
+                        lower_bound, upper_bound
+                        ):
                         conditions_hold = False
                         break
                 
@@ -1072,13 +1072,13 @@ cdef inline int node_split_random(
         # Reject if min_samples_leaf is not guaranteed
         conditions_hold = True
         for condition in splitter.presplit_conditions:
-            if not condition.holds(
+            if not (<SplitCondition>condition).holds(
                 splitter,
                 current_split.feature, current_split.pos,
                 current_split.threshold,
-                n_missing, missing_go_to_left,
-                lower_bound, upper_bound, condition.e
-            ):
+                -1, False,
+                lower_bound, upper_bound
+                ):
                 conditions_hold = False
                 break
         
@@ -1093,11 +1093,11 @@ cdef inline int node_split_random(
 
         conditions_hold = True
         for condition in splitter.postsplit_conditions:
-            if not condition.f(
+            if not (<SplitCondition>condition).holds(
                 splitter, current_split.feature, current_split.pos,
                 current_split.threshold,
-                n_missing, missing_go_to_left,
-                lower_bound, upper_bound, condition.e
+                -1, False,
+                lower_bound, upper_bound
             ):
                 conditions_hold = False
                 break
