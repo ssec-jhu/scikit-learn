@@ -18,6 +18,14 @@ from ._tree cimport ParentInfo
 
 from ..utils._typedefs cimport float32_t, float64_t, intp_t, int8_t, int32_t, uint32_t
 
+from ._events cimport EventBroker, EventHandler
+
+
+cdef enum NodeSplitEvent:
+    SORT_FEATURE = 1
+
+cdef struct NodeSplitEventData:
+    intp_t feature
 
 # NICE IDEAS THAT DON'T APPEAR POSSIBLE
 # - accessing elements of a memory view of cython extension types in a nogil block/function
@@ -153,6 +161,8 @@ cdef class Splitter(BaseSplitter):
 
     cdef vector[SplitConditionClosure] presplit_conditions
     cdef vector[SplitConditionClosure] postsplit_conditions
+
+    cdef EventBroker event_broker
 
     cdef int init(
         self,

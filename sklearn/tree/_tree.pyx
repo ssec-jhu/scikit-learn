@@ -178,10 +178,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
         self.store_leaf_values = store_leaf_values
         self.initial_roots = initial_roots
 
-#        cdef list etl = [TreeBuildEvent.ADD_NODE, TreeBuildEvent.UPDATE_NODE]
-#        cdef int[:] event_types = etl
         self.event_broker = EventBroker(listeners, [TreeBuildEvent.ADD_NODE, TreeBuildEvent.UPDATE_NODE])
-#        init_event_broker(self.event_broker, listeners, self.listeners, event_types)
 
 
     def __reduce__(self):

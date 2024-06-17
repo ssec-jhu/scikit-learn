@@ -306,6 +306,7 @@ cdef class Splitter(BaseSplitter):
         const int8_t[:] monotonic_cst,
         SplitCondition[:] presplit_conditions = None,
         SplitCondition[:] postsplit_conditions = None,
+        EventHandler[:] listeners = None,
         *argv
     ):
         """
@@ -345,6 +346,8 @@ cdef class Splitter(BaseSplitter):
         self.random_state = random_state
         self.monotonic_cst = monotonic_cst
         self.with_monotonic_cst = monotonic_cst is not None
+
+        self.event_broker = EventBroker(listeners, [NodeSplitEvent.SORT_FEATURE])
 
         self.min_samples_leaf_condition = MinSamplesLeafCondition()
         self.min_weight_leaf_condition = MinWeightLeafCondition()
@@ -681,6 +684,8 @@ cdef inline intp_t node_split_best(
 
     cdef bint conditions_hold = True
 
+    cdef NodeSplitEventData event_data
+
     _init_split(&best_split, end)
 
     partitioner.init_node_split(start, end)
@@ -729,6 +734,10 @@ cdef inline intp_t node_split_best(
         # f_j in the interval [n_total_constants, f_i[
         current_split.feature = features[f_j]
         partitioner.sort_samples_and_feature_values(current_split.feature)
+
+        event_data.feature = current_split.feature
+        splitter.event_broker.fire_event(NodeSplitEvent.SORT_FEATURE, &event_data)
+
         n_missing = partitioner.n_missing
         end_non_missing = end - n_missing
 
