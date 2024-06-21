@@ -341,6 +341,8 @@ cdef class Splitter(BaseSplitter):
         This is typically a metric that is cheaply computed given the
         current proposed split, which is stored as a the `current_split`
         argument.
+
+        Returns 1 if not a valid split, and 0 if it is.
         """
         cdef intp_t min_samples_leaf = self.min_samples_leaf
         cdef intp_t end_non_missing = self.end - n_missing
@@ -418,8 +420,6 @@ cdef inline intp_t node_split_best(
     Criterion criterion,
     SplitRecord* split,
     ParentInfo* parent_record,
-    # bint with_monotonic_cst,
-    # const int8_t[:] monotonic_cst,
 ) except -1 nogil:
     """Find the best split on node samples[start:end]
 
@@ -566,25 +566,7 @@ cdef inline intp_t node_split_best(
 
                 current_split.pos = p
 
-                # Reject if monotonicity constraints are not satisfied
-                if (
-                    with_monotonic_cst and
-                    monotonic_cst[current_split.feature] != 0 and
-                    not criterion.check_monotonicity(
-                        monotonic_cst[current_split.feature],
-                        lower_bound,
-                        upper_bound,
-                    )
-                ):
-                    continue
-
                 # Reject if min_samples_leaf is not guaranteed
-                if missing_go_to_left:
-                    n_left = current_split.pos - splitter.start + n_missing
-                    n_right = end_non_missing - current_split.pos
-                else:
-                    n_left = current_split.pos - splitter.start
-                    n_right = end_non_missing - current_split.pos + n_missing
                 if splitter.check_presplit_conditions(&current_split, n_missing, missing_go_to_left) == 1:
                     continue
 
@@ -624,6 +606,13 @@ cdef inline intp_t node_split_best(
 
                     current_split.n_missing = n_missing
                     if n_missing == 0:
+                        if missing_go_to_left:
+                            n_left = current_split.pos - splitter.start + n_missing
+                            n_right = end_non_missing - current_split.pos
+                        else:
+                            n_left = current_split.pos - splitter.start
+                            n_right = end_non_missing - current_split.pos + n_missing
+
                         current_split.missing_go_to_left = n_left > n_right
                     else:
                         current_split.missing_go_to_left = missing_go_to_left
@@ -938,10 +927,6 @@ cdef inline int node_split_random(
         criterion.reset()
         criterion.update(current_split.pos)
 
-        # Reject if min_weight_leaf is not satisfied
-        if splitter.check_postsplit_conditions() == 1:
-            continue
-
         # Reject if monotonicity constraints are not satisfied
         if (
             with_monotonic_cst and
@@ -954,16 +939,8 @@ cdef inline int node_split_random(
         ):
             continue
 
-        # Reject if monotonicity constraints are not satisfied
-        if (
-                with_monotonic_cst and
-                monotonic_cst[current_split.feature] != 0 and
-                not criterion.check_monotonicity(
-                    monotonic_cst[current_split.feature],
-                    lower_bound,
-                    upper_bound,
-                )
-        ):
+        # Reject if min_weight_leaf is not satisfied
+        if splitter.check_postsplit_conditions() == 1:
             continue
 
         current_proxy_improvement = criterion.proxy_impurity_improvement()

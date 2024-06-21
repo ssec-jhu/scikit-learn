@@ -191,3 +191,11 @@ cdef class TreeBuilder:
         const float64_t[:, ::1] y,
         const float64_t[:] sample_weight,
     )
+
+
+cdef _build_pruned_tree(
+    Tree tree,  # OUT
+    Tree orig_tree,
+    const unsigned char[:] leaves_in_subtree,
+    intp_t capacity
+)
