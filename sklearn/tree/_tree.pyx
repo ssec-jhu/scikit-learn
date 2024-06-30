@@ -18,7 +18,7 @@
 
 from cpython cimport Py_INCREF, PyObject, PyTypeObject
 from cython.operator cimport dereference as deref
-from libc.math cimport isnan
+from libc.math cimport isnan, NAN
 from libc.stdint cimport INTPTR_MAX
 from libc.stdlib cimport free, malloc
 from libc.string cimport memcpy, memset
@@ -279,7 +279,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
             e.n_node_samples = e.end - e.start
 
             parent_event_data.parent_node_id = e.stack_record.parent
-            if !broker.fire_event(TreeBuildEvent.SET_ACTIVE_PARENT, &parent_event_data):
+            if not broker.fire_event(TreeBuildEvent.SET_ACTIVE_PARENT, &parent_event_data):
                 e.rc = TreeBuildStatus.EVENT_ERROR
                 break
 
@@ -333,7 +333,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                 evt = TreeBuildEvent.ADD_NODE
 
             if e.node_id == INTPTR_MAX:
-                e.rc = TreeBuildStatus.MEMORY_ERROR
+                e.rc = TreeBuildStatus.EXCEPTION_OR_MEMORY_ERROR
                 break
 
             add_update_node_data.node_id = e.node_id
@@ -510,7 +510,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
             self._build_body(self.event_broker, tree, splitter, &e, 0)
 
             if e.rc >= 0:
-                e.rc = tree._resize_c(tree.node_count)
+                e.rc = <TreeBuildStatus>tree._resize_c(tree.node_count)
 
             if e.rc >= 0:
                 tree.max_depth = e.max_depth_seen
@@ -518,7 +518,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
         # free the memory created for the SplitRecord pointer
         free(e.split)
 
-        if e.rc == TreeBuildStatus.MEMORY_ERROR:
+        if e.rc == TreeBuildStatus.EXCEPTION_OR_MEMORY_ERROR:
             raise MemoryError()
         
         if e.rc == TreeBuildStatus.EVENT_ERROR:

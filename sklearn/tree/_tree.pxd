@@ -68,7 +68,7 @@ cdef extern from "<stack>" namespace "std" nogil:
 
 cdef enum TreeBuildStatus:
     OK = 0
-    MEMORY_ERROR = -1
+    EXCEPTION_OR_MEMORY_ERROR = -1
     EVENT_ERROR = -2
 
 cdef struct BuildEnv:

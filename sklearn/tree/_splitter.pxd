@@ -25,7 +25,6 @@ cdef enum NodeSplitEvent:
     SORT_FEATURE = 1
 
 cdef struct NodeSortFeatureEventData:
-    intp_t node_id
     intp_t feature
 
 cdef struct NodeSplitEventData:
@@ -46,7 +45,9 @@ cdef struct NodeSplitEventData:
 ctypedef void* SplitConditionEnv
 ctypedef bint (*SplitConditionFunction)(
     Splitter splitter,
-    SplitRecord* current_split,
+    intp_t split_feature,
+    intp_t split_pos,
+    float64_t split_value,
     intp_t n_missing,
     bint missing_go_to_left,
     float64_t lower_bound,

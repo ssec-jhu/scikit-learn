@@ -119,12 +119,3 @@ cdef class AddNodeHandler(EventHandler):
         self.c.f = _handle_add_node
         self.c.e = env
 
-# honest_nodes[stack_record.parent_node_id]:
-#  start
-#  end
-#  feature
-#  split_value
-#
-# stack_record.parent_node_id
-# stack_record.is_left
-#

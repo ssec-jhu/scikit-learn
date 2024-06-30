@@ -5,8 +5,10 @@
 # See _honesty.pyx for details.
 
 from .._events cimport EventHandler
-from .._splitter cimport Partitioner, NodeSplitEvent
-from .._tree cimport BuildEnv, EventHandlerEnv, TreeBuildEvent, TreeBuildEventHandler
+from .._splitter cimport Partitioner, NodeSplitEvent, NodeSortFeatureEventData, NodeSplitEventData
+from .._splitter cimport SplitConditionEnv, SplitConditionFunction, SplitConditionClosure, SplitCondition
+from .._tree cimport TreeBuildEvent, TreeBuildSetActiveParentEventData, TreeBuildAddNodeEventData
+
 from ..utils._typedefs cimport float32_t, float64_t, intp_t, int32_t, uint32_t
 
 from libcpp.vector cimport vector
@@ -36,4 +38,13 @@ cdef struct HonestEnv:
 #        Partitioner partitioner
 
 cdef class NodeSortFeatureHandler(EventHandler):
-    cdef HonestEnv* _env
+    pass
+
+cdef class AddNodeHandler(EventHandler):
+    pass
+
+cdef class SetActiveParentHandler(EventHandler):
+    pass
+
+cdef class MinSamplesLeafCondition(SplitCondition):
+    pass
