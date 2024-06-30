@@ -669,6 +669,7 @@ cdef inline intp_t node_split_best(
         current_split.feature = features[f_j]
         partitioner.sort_samples_and_feature_values(current_split.feature)
 
+        event_data.node_id = 
         event_data.feature = current_split.feature
         splitter.event_broker.fire_event(NodeSplitEvent.SORT_FEATURE, &event_data)
 

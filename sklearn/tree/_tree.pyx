@@ -259,6 +259,8 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
 
     cdef void _build_body(self, EventBroker broker, Tree tree, Splitter splitter, BuildEnv* e, bint update) noexcept nogil:
         cdef TreeBuildEvent evt
+        cdef TreeBuildSetActiveParentEventData parent_event_data
+        cdef TreeBuildAddNodeEventData add_update_node_data
 
         while not e.target_stack.empty():
             e.stack_record = e.target_stack.top()
@@ -275,6 +277,12 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
             e.parent_record.upper_bound = e.stack_record.upper_bound
 
             e.n_node_samples = e.end - e.start
+
+            parent_event_data.parent_node_id = e.stack_record.parent
+            if !broker.fire_event(TreeBuildEvent.SET_ACTIVE_PARENT, &parent_event_data):
+                e.rc = TreeBuildStatus.EVENT_ERROR
+                break
+
             splitter.node_reset(e.start, e.end, &e.weighted_n_node_samples)
 
             e.is_leaf = (e.depth >= e.max_depth or
@@ -289,11 +297,18 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
             # impurity == 0 with tolerance due to rounding errors
             e.is_leaf = e.is_leaf or e.parent_record.impurity <= EPSILON
 
+            add_update_node_data.parent_node_id = e.parent
+            add_update_node_data.is_left = e.is_left
+            add_update_node_data.feature = -1
+            add_update_node_data.split_point = NAN
             if not e.is_leaf:
                 splitter.node_split(
                     &e.parent_record,
                     e.split,
                 )
+
+                add_update_node_data.feature = e.split.feature
+                add_update_node_data.split_point = e.split.threshold
 
                 # If EPSILON=0 in the below comparison, float precision
                 # issues stop splitting, producing trees that are
@@ -318,10 +333,11 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                 evt = TreeBuildEvent.ADD_NODE
 
             if e.node_id == INTPTR_MAX:
-                e.rc = -1
+                e.rc = TreeBuildStatus.MEMORY_ERROR
                 break
 
-            broker.fire_event(evt, e)
+            add_update_node_data.node_id = e.node_id
+            broker.fire_event(evt, &add_update_node_data)
 
             # Store value for all nodes, to facilitate tree/model
             # inspection and interpretation
@@ -452,7 +468,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
 
         e.max_depth_seen = -1 if e.first else tree.max_depth
 
-        e.rc = 0
+        e.rc = TreeBuildStatus.OK
 
         _init_parent_record(&e.parent_record)
 
@@ -502,8 +518,11 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
         # free the memory created for the SplitRecord pointer
         free(e.split)
 
-        if e.rc == -1:
+        if e.rc == TreeBuildStatus.MEMORY_ERROR:
             raise MemoryError()
+        
+        if e.rc == TreeBuildStatus.EVENT_ERROR:
+            raise RuntimeError("Event handler failure")
 
 # Best first builder ----------------------------------------------------------
 cdef struct FrontierRecord:

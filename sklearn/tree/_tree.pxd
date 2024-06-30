@@ -66,6 +66,11 @@ cdef extern from "<stack>" namespace "std" nogil:
         void push(T&) except +  # Raise c++ exception for bad_alloc -> MemoryError
         T& top()
 
+cdef enum TreeBuildStatus:
+    OK = 0
+    MEMORY_ERROR = -1
+    EVENT_ERROR = -2
+
 cdef struct BuildEnv:
     # Parameters
     intp_t max_depth
@@ -96,7 +101,7 @@ cdef struct BuildEnv:
     bint is_leaf
     intp_t max_depth_seen
 
-    intp_t rc
+    TreeBuildStatus rc
 
     stack[StackRecord] builder_stack
     stack[StackRecord] update_stack
@@ -108,6 +113,17 @@ cdef struct BuildEnv:
 cdef enum TreeBuildEvent:
     ADD_NODE = 1
     UPDATE_NODE = 2
+    SET_ACTIVE_PARENT = 3
+
+cdef struct TreeBuildSetActiveParentEventData:
+    intp_t parent_node_id
+
+cdef struct TreeBuildAddNodeEventData:
+    intp_t parent_node_id
+    intp_t node_id
+    bint is_left
+    intp_t feature
+    float64_t split_point
 
 
 cdef class BaseTree:

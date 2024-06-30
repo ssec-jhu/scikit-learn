@@ -24,8 +24,13 @@ from ._events cimport EventBroker, EventHandler
 cdef enum NodeSplitEvent:
     SORT_FEATURE = 1
 
+cdef struct NodeSortFeatureEventData:
+    intp_t node_id
+    intp_t feature
+
 cdef struct NodeSplitEventData:
     intp_t feature
+    float64_t threshold
 
 # NICE IDEAS THAT DON'T APPEAR POSSIBLE
 # - accessing elements of a memory view of cython extension types in a nogil block/function
