@@ -13,6 +13,7 @@
 #          Jacob Schreiber <jmschreiber91@gmail.com>
 #          Nelson Liu <nelson@nelsonliu.me>
 #          Haoyin Xu <haoyinxu@gmail.com>
+#          Samuel Carliles <scarlil1@jhu.edu>
 #
 # License: BSD 3 clause
 

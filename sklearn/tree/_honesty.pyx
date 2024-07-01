@@ -1,6 +1,21 @@
 from libc.math cimport floor, log2, pow
 
 
+cdef class Honesty:
+    def __cinit__(
+        self,
+        Partitioner honest_partitioner,
+        list splitter_event_handlers,
+        list split_conditions,
+        list tree_event_handlers,
+        intp_t min_samples_leaf
+    ):
+        self.env.partitioner = honest_partitioner
+        self.splitter_event_handlers = [NodeSortFeatureHandler(&self.env)] + splitter_event_handlers
+        self.split_conditions = [HonestMinSamplesLeafCondition(min_samples_leaf, &self.env)] + split_conditions
+        self.tree_event_handlers = [SetActiveParentHandler(&self.env), AddNodeHandler(&self.env)] + tree_event_handlers
+
+
 cdef bint _handle_set_active_parent(
     EventType event_type,
     EventHandlerEnv handler_env,

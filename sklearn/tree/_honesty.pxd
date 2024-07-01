@@ -32,13 +32,14 @@ cdef struct HonestEnv:
     intp_t active_is_left
     Partitioner partitioner
 
-#cdef class Honesty:
-#    list splitter_event_handlers
-#    list tree_event_handlers
-#
-#    cdef:
-#        HonestEnv env
-#        Partitioner partitioner
+cdef class Honesty:
+    list splitter_event_handlers
+    list split_conditions
+    list tree_event_handlers
+
+    cdef:
+        HonestEnv env
+        Partitioner partitioner
 
 cdef struct MinSampleLeafConditionEnv:
     intp_t min_samples
