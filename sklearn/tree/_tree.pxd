@@ -117,6 +117,7 @@ cdef enum TreeBuildEvent:
 
 cdef struct TreeBuildSetActiveParentEventData:
     intp_t parent_node_id
+    bint child_is_left
 
 cdef struct TreeBuildAddNodeEventData:
     intp_t parent_node_id

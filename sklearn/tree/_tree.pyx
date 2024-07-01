@@ -279,6 +279,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
             e.n_node_samples = e.end - e.start
 
             parent_event_data.parent_node_id = e.stack_record.parent
+            parent_event_data.child_is_left = e.stack_record.is_left
             if not broker.fire_event(TreeBuildEvent.SET_ACTIVE_PARENT, &parent_event_data):
                 e.rc = TreeBuildStatus.EVENT_ERROR
                 break

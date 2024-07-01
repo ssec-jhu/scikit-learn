@@ -26,6 +26,7 @@ cdef enum NodeSplitEvent:
 
 cdef struct NodeSortFeatureEventData:
     intp_t feature
+    intp_t is_left
 
 cdef struct NodeSplitEventData:
     intp_t feature

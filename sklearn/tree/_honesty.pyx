@@ -9,13 +9,33 @@ cdef bint _handle_set_active_parent(
     if event_type != TreeBuildEvent.SET_ACTIVE_PARENT:
         return True
     
-    HonestEnv* env = <HonestEnv*>handler_env
-    TreeBuildSetActiveParentEventData* data = <TreeBuildSetActiveParentEventData*>event_data
+    cdef HonestEnv* env = <HonestEnv*>handler_env
+    cdef TreeBuildSetActiveParentEventData* data = <TreeBuildSetActiveParentEventData*>event_data
+    cdef Interval* node = &env.active_node
 
-    if data.parent_node_id < 0 || data.parent_node_id >= env.tree.size():
+    if data.parent_node_id >= env.tree.size():
         return False
 
-    env.active_parent = &(env.tree[data.parent_node_id])
+    env.active_is_left = data.child_is_left
+
+    node.feature = -1
+    node.split_idx = 0
+    node.split_value = NAN
+
+    if data.parent_node_id < 0:
+        env.active_parent = NULL
+        node.start_idx = 0
+        node.n = env.samples.shape[0]
+    else:
+        env.active_parent = &(env.tree[data.parent_node_id])
+        if env.active_is_left:
+            node.start_idx = env.active_parent.start_idx
+            node.n = env.active_parent.split_idx - env.active_parent.start_idx
+        else:
+            node.start_idx = env.active_parent.split_idx
+            node.n = env.active_parent.n - env.active_parent.split_idx
+
+    env.partitioner.init_node_split(node.start_idx, node.start_idx + node.n)
 
     return True
 
@@ -36,10 +56,14 @@ cdef bint _handle_sort_feature(
     if event_type != NodeSplitEvent.SORT_FEATURE:
         return True
     
-    HonestEnv* env = <HonestEnv*>handler_env
-    NodeSortFeatureEventData* data = <NodeSortFeatureEventData*>event_data
+    cdef HonestEnv* env = <HonestEnv*>handler_env
+    cdef NodeSortFeatureEventData* data = <NodeSortFeatureEventData*>event_data
+    cdev Interval* node = &env.active_node
 
-    env.partitioner.sort_samples_and_feature_values(data.feature)
+    node.feature = data.feature
+    node.split_idx = 0
+    node.split_value = NAN
+    env.partitioner.sort_samples_and_feature_values(node.feature)
 
     return True
 
@@ -72,44 +96,44 @@ cdef bint _handle_add_node(
         env.tree.resize(size + <intp_t>pow(2, h + 1))
 
     interval = &(env.tree[node_id])
+    interval.feature = data.feature
+    interval.split_value = data.split_value
 
-    if data.parent_node_id >= 0:
+    if data.parent_node_id < 0:
+        # the node being added is the tree root
+        interval.start_idx = 0
+        interval.n = env.samples.shape[0]
+    else:
         parent = &(env.tree[data.parent_node_id])
 
-        # *we* don't need to sort to find the split pos we'll need for partitioning,
-        # but the partitioner internals are so stateful we had better just do it
-        # to ensure that it's in the expected state
-        env.partitioner.init_node_split(parent.low_idx, parent.hi_idx)
-        env.partitioner.sort_samples_and_feature_values(parent.feature)
-
-        # count n_left to find split pos
-        n_left = 0
-        i = parent.low_idx
-        feature_value = env.X[env.samples[i], parent.feature]
-
-        while !isnan(feature_value) && feature_value < parent.split_value && i <= parent.hi_idx:
-            n_left += 1
-            i += 1
-            feature_value = env.X[env.samples[i], parent.feature]
-
-        env.partitioner.partition_samples_final(
-            parent.low_idx + n_left, parent.split_value, parent.feature, partitioner.n_missing
-            )
-
         if data.is_left:
-            interval.low_idx = parent.low_idx
-            interval.hi_idx = parent.low_idx + n_left - 1
+            interval.start_idx = parent.start_idx
+            interval.n = parent.split_idx - parent.start_idx
         else:
-            interval.low_idx = parent.low_idx + n_left
-            interval.hi_idx = parent.hi_idx
-    else:
-        # the node being added is the tree root
-        interval.low_idx = 0
-        interval.hi_idx = env.samples.shape[0] - 1
+            interval.start_idx = parent.split_idx
+            interval.n = parent.n - parent.split_idx
 
-    interval.feature = data.feature
-    interval.split = data.split_value
+    # *we* don't need to sort to find the split pos we'll need for partitioning,
+    # but the partitioner internals are so stateful we had better just do it
+    # to ensure that it's in the expected state
+    env.partitioner.init_node_split(interval.start_idx, interval.start_idx + interval.n)
+    env.partitioner.sort_samples_and_feature_values(interval.feature)
 
+    # count n_left to find split pos
+    n_left = 0
+    i = interval.start_idx
+    feature_value = env.X[env.samples[i], interval.feature]
+
+    while !isnan(feature_value) && feature_value < interval.split_value && i < interval.start_idx + interval.n:
+        n_left += 1
+        i += 1
+        feature_value = env.X[env.samples[i], interval.feature]
+
+    interval.split_idx = interval.start_idx + n_left
+
+    env.partitioner.partition_samples_final(
+        interval.split_idx, interval.split_value, interval.feature, partitioner.n_missing
+        )
 
 cdef class AddNodeHandler(EventHandler):
     def __cinit__(self, HonestEnv* env):
@@ -119,3 +143,33 @@ cdef class AddNodeHandler(EventHandler):
         self.c.f = _handle_add_node
         self.c.e = env
 
+
+cdef bint _honest_min_sample_leaf_condition(
+    Splitter splitter,
+    intp_t split_feature,
+    intp_t split_pos,
+    float64_t split_value,
+    intp_t n_missing,
+    bint missing_go_to_left,
+    float64_t lower_bound,
+    float64_t upper_bound,
+    SplitConditionEnv split_condition_env
+) noexcept nogil:
+    cdef MinSamplesLeafConditionEnv* env = <MinSamplesLeafConditionEnv*>split_condition_env
+
+    cdef intp_t min_samples_leaf = env.min_samples
+    cdef intp_t end_non_missing = splitter.end - n_missing
+    cdef intp_t n_left, n_right
+
+    if missing_go_to_left:
+        n_left = split_pos - splitter.start + n_missing
+        n_right = end_non_missing - split_pos
+    else:
+        n_left = split_pos - splitter.start
+        n_right = end_non_missing - split_pos + n_missing
+
+    # Reject if min_samples_leaf is not guaranteed
+    if n_left < min_samples_leaf or n_right < min_samples_leaf:
+        return False
+
+    return True

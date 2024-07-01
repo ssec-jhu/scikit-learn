@@ -15,9 +15,10 @@ from libcpp.vector cimport vector
 
 
 cdef struct Interval:
-    intp_t low_idx
-    intp_t hi_idx         # inclusive
+    intp_t start_idx
+    intp_t n
     intp_t feature
+    intp_t split_idx      # start of right child
     float64_t split_value
 
 cdef struct HonestEnv:
@@ -27,6 +28,8 @@ cdef struct HonestEnv:
 
     vector[Interval] tree
     Interval* active_parent
+    Interval active_node
+    intp_t active_is_left
     Partitioner partitioner
 
 #cdef class Honesty:
@@ -36,6 +39,11 @@ cdef struct HonestEnv:
 #    cdef:
 #        HonestEnv env
 #        Partitioner partitioner
+
+cdef struct MinSampleLeafConditionEnv:
+    intp_t min_samples
+    HonestEnv* honest_env
+
 
 cdef class NodeSortFeatureHandler(EventHandler):
     pass
