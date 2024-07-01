@@ -156,20 +156,38 @@ cdef bint _honest_min_sample_leaf_condition(
     SplitConditionEnv split_condition_env
 ) noexcept nogil:
     cdef MinSamplesLeafConditionEnv* env = <MinSamplesLeafConditionEnv*>split_condition_env
+    cdef HonestEnv* honest_env = env.honest_env
+    cdef Interval* node = env.active_node
 
     cdef intp_t min_samples_leaf = env.min_samples
-    cdef intp_t end_non_missing = splitter.end - n_missing
-    cdef intp_t n_left, n_right
+    cdef intp_t end_non_missing, n_left, n_right
 
+    # we don't care about n_missing in the structure set
+    n_missing = honest_env.partitioner.n_missing
+    end_non_missing = node.start_idx + node.n - n_missing
+
+    # we don't care about split_pos in the structure set,
+    # need to scan forward in the honest set based on split_value to find it
+    while node.split_idx < node.start_idx + node.n && env.X[node.split_idx, node.feature] <= split_value:
+        node.split_idx += 1
+    
     if missing_go_to_left:
-        n_left = split_pos - splitter.start + n_missing
-        n_right = end_non_missing - split_pos
+        n_left = node.split_idx - node.start_idx + n_missing
+        n_right = end_non_missing - node.split_idx
     else:
-        n_left = split_pos - splitter.start
-        n_right = end_non_missing - split_pos + n_missing
+        n_left = node.split_idx - node.start_idx
+        n_right = end_non_missing - node.split_idx + n_missing
 
     # Reject if min_samples_leaf is not guaranteed
     if n_left < min_samples_leaf or n_right < min_samples_leaf:
         return False
 
     return True
+
+cdef class HonestMinSamplesLeafCondition(SplitCondition):
+    def __cinit__(self, intp_t min_samples, HonestEnv* env):
+        self._env.min_samples = min_samples
+        self._env.honest_env = env
+
+        self.c.f = _honest_min_sample_leaf_condition
+        self.c.e = &self._env

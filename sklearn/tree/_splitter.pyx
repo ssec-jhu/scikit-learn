@@ -13,6 +13,7 @@
 #          Jacob Schreiber <jmschreiber91@gmail.com>
 #          Adam Li <adam2392@gmail.com>
 #          Jong Shin <jshinm@gmail.com>
+#          Samuel Carliles <scarlil1@jhu.edu>
 #
 
 # License: BSD 3 clause

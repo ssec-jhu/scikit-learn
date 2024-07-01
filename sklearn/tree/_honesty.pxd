@@ -54,5 +54,5 @@ cdef class AddNodeHandler(EventHandler):
 cdef class SetActiveParentHandler(EventHandler):
     pass
 
-cdef class MinSamplesLeafCondition(SplitCondition):
-    pass
+cdef class HonestMinSamplesLeafCondition(SplitCondition):
+    cdef MinSamplesLeafConditionEnv _env
