@@ -557,15 +557,6 @@ cdef inline void shift_missing_values_to_left_if_required(
         best.pos += best.n_missing
 
 
-# Introduce a fused-class to make it possible to share the split implementation
-# between the dense and sparse cases in the node_split_best and node_split_random
-# functions. The alternative would have been to use inheritance-based polymorphism
-# but it would have resulted in a ~10% overall tree fitting performance
-# degradation caused by the overhead frequent virtual method lookups.
-ctypedef fused Partitioner:
-    DensePartitioner
-    SparsePartitioner
-
 cdef inline intp_t node_split_best(
     Splitter splitter,
     Partitioner partitioner,
@@ -1165,15 +1156,6 @@ cdef class DensePartitioner:
 
     Note that this partitioner is agnostic to the splitting strategy (best vs. random).
     """
-    cdef:
-        const float32_t[:, :] X
-        cdef intp_t[::1] samples
-        cdef float32_t[::1] feature_values
-        cdef intp_t start
-        cdef intp_t end
-        cdef intp_t n_missing
-        cdef const unsigned char[::1] missing_values_in_feature_mask
-
     def __init__(
         self,
         const float32_t[:, :] X,
@@ -1377,26 +1359,6 @@ cdef class SparsePartitioner:
 
     Note that this partitioner is agnostic to the splitting strategy (best vs. random).
     """
-    cdef intp_t[::1] samples
-    cdef float32_t[::1] feature_values
-    cdef intp_t start
-    cdef intp_t end
-    cdef intp_t n_missing
-    cdef const unsigned char[::1] missing_values_in_feature_mask
-
-    cdef const float32_t[::1] X_data
-    cdef const int32_t[::1] X_indices
-    cdef const int32_t[::1] X_indptr
-
-    cdef intp_t n_total_samples
-
-    cdef intp_t[::1] index_to_samples
-    cdef intp_t[::1] sorted_samples
-
-    cdef intp_t start_positive
-    cdef intp_t end_negative
-    cdef bint is_samples_sorted
-
     def __init__(
         self,
         object X,

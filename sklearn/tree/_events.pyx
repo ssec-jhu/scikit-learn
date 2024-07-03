@@ -22,9 +22,9 @@ cdef class EventBroker:
                 self.listeners[e].resize(0)
 
     cdef bint fire_event(self, EventType event_type, EventData event_data) noexcept nogil:
-        bint result = True
+        cdef bint result = True
 
         for l in self.listeners[event_type]:
-            result = result && l.f(event_type, l.e, event_data)
+            result = result and l.f(event_type, l.e, event_data)
         
         return result

@@ -11,6 +11,12 @@ tree_extension_metadata = {
   '_utils':
     {'sources': ['_utils.pyx'],
      'override_options': ['cython_language=cpp', 'optimization=3']},
+  '_events':
+    {'sources': ['_events.pyx'],
+     'override_options': ['cython_language=cpp', 'optimization=3']},
+  '_honesty':
+    {'sources': ['_honesty.pyx'],
+     'override_options': ['cython_language=cpp', 'optimization=3']}
 }
 
 foreach ext_name, ext_dict : tree_extension_metadata

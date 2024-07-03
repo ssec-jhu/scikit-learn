@@ -4,10 +4,10 @@
 
 # See _honesty.pyx for details.
 
-from .._events cimport EventHandler
-from .._splitter cimport Partitioner, NodeSplitEvent, NodeSortFeatureEventData, NodeSplitEventData
-from .._splitter cimport SplitConditionEnv, SplitConditionFunction, SplitConditionClosure, SplitCondition
-from .._tree cimport TreeBuildEvent, TreeBuildSetActiveParentEventData, TreeBuildAddNodeEventData
+from ._events cimport EventHandler
+from ._splitter cimport Partitioner, NodeSplitEvent, NodeSortFeatureEventData, NodeSplitEventData
+from ._splitter cimport SplitConditionEnv, SplitConditionFunction, SplitConditionClosure, SplitCondition
+from ._tree cimport TreeBuildEvent, TreeBuildSetActiveParentEventData, TreeBuildAddNodeEventData
 
 from ..utils._typedefs cimport float32_t, float64_t, intp_t, int32_t, uint32_t
 
@@ -33,11 +33,11 @@ cdef struct HonestEnv:
     Partitioner partitioner
 
 cdef class Honesty:
-    list splitter_event_handlers
-    list split_conditions
-    list tree_event_handlers
-
     cdef:
+        object splitter_event_handlers # python list of EventHandler
+        object split_conditions        # python list of SplitCondition
+        object tree_event_handlers     # python list of EventHandler
+
         HonestEnv env
         Partitioner partitioner
 

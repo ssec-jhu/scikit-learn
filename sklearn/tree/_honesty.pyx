@@ -5,11 +5,18 @@ cdef class Honesty:
     def __cinit__(
         self,
         Partitioner honest_partitioner,
-        list splitter_event_handlers,
-        list split_conditions,
-        list tree_event_handlers,
+        list splitter_event_handlers = None,
+        list split_conditions = None,
+        list tree_event_handlers = None,
         intp_t min_samples_leaf
     ):
+        if splitter_event_handlers is None:
+            splitter_event_handlers = []
+        if split_conditions is None:
+            split_conditions = []
+        if tree_event_handlers is None:
+            tree_event_handlers = []
+
         self.env.partitioner = honest_partitioner
         self.splitter_event_handlers = [NodeSortFeatureHandler(&self.env)] + splitter_event_handlers
         self.split_conditions = [HonestMinSamplesLeafCondition(min_samples_leaf, &self.env)] + split_conditions
