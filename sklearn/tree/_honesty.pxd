@@ -4,8 +4,9 @@
 
 # See _honesty.pyx for details.
 
-from ._events cimport EventHandler
-from ._splitter cimport Partitioner, NodeSplitEvent, NodeSortFeatureEventData, NodeSplitEventData
+from ._events cimport EventData, EventHandler, EventHandlerEnv, EventType
+from ._splitter cimport Partitioner, Splitter
+from ._splitter cimport NodeSplitEvent, NodeSortFeatureEventData, NodeSplitEventData
 from ._splitter cimport SplitConditionEnv, SplitConditionFunction, SplitConditionClosure, SplitCondition
 from ._tree cimport TreeBuildEvent, TreeBuildSetActiveParentEventData, TreeBuildAddNodeEventData
 
@@ -21,16 +22,19 @@ cdef struct Interval:
     intp_t split_idx      # start of right child
     float64_t split_value
 
-cdef struct HonestEnv:
-    const float32_t[:, :] X
-    intp_t[::1] samples
-    float32_t[::1] feature_values
+cdef class Views:
+    cdef:
+        const float32_t[:, :] X
+        intp_t[::1] samples
+        float32_t[::1] feature_values
+        Partitioner partitioner
 
+cdef struct HonestEnv:
+    void* data_views
     vector[Interval] tree
     Interval* active_parent
     Interval active_node
     intp_t active_is_left
-    Partitioner partitioner
 
 cdef class Honesty:
     cdef:
@@ -38,10 +42,10 @@ cdef class Honesty:
         object split_conditions        # python list of SplitCondition
         object tree_event_handlers     # python list of EventHandler
 
+        Views views
         HonestEnv env
-        Partitioner partitioner
 
-cdef struct MinSampleLeafConditionEnv:
+cdef struct MinSamplesLeafConditionEnv:
     intp_t min_samples
     HonestEnv* honest_env
 
