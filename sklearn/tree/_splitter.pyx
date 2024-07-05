@@ -1,21 +1,5 @@
-# cython: language_level=3
-# cython: boundscheck=False, wraparound=False, initializedcheck=False, cdivision=True
-
-# Authors: Gilles Louppe <g.louppe@gmail.com>
-#          Peter Prettenhofer <peter.prettenhofer@gmail.com>
-#          Brian Holt <bdholt1@gmail.com>
-#          Noel Dawe <noel@dawe.me>
-#          Satrajit Gosh <satrajit.ghosh@gmail.com>
-#          Lars Buitinck
-#          Arnaud Joly <arnaud.v.joly@gmail.com>
-#          Joel Nothman <joel.nothman@gmail.com>
-#          Fares Hedayati <fares.hedayati@gmail.com>
-#          Jacob Schreiber <jmschreiber91@gmail.com>
-#          Adam Li <adam2392@gmail.com>
-#          Jong Shin <jshinm@gmail.com>
-#
-
-# License: BSD 3 clause
+# Authors: The scikit-learn developers
+# SPDX-License-Identifier: BSD-3-Clause
 
 from cython cimport final
 from libc.math cimport isnan
@@ -357,6 +341,8 @@ cdef class Splitter(BaseSplitter):
         This is typically a metric that is cheaply computed given the
         current proposed split, which is stored as a the `current_split`
         argument.
+
+        Returns 1 if not a valid split, and 0 if it is.
         """
         cdef intp_t min_samples_leaf = self.min_samples_leaf
         cdef intp_t end_non_missing = self.end - n_missing
@@ -434,14 +420,15 @@ cdef inline intp_t node_split_best(
     Criterion criterion,
     SplitRecord* split,
     ParentInfo* parent_record,
-    bint with_monotonic_cst,
-    const int8_t[:] monotonic_cst,
 ) except -1 nogil:
     """Find the best split on node samples[start:end]
 
     Returns -1 in case of failure to allocate memory (and raise MemoryError)
     or 0 otherwise.
     """
+    cdef const int8_t[:] monotonic_cst = splitter.monotonic_cst
+    cdef bint with_monotonic_cst = splitter.with_monotonic_cst
+
     # Find the best split
     cdef intp_t start = splitter.start
     cdef intp_t end = splitter.end
@@ -579,25 +566,7 @@ cdef inline intp_t node_split_best(
 
                 current_split.pos = p
 
-                # Reject if monotonicity constraints are not satisfied
-                if (
-                    with_monotonic_cst and
-                    monotonic_cst[current_split.feature] != 0 and
-                    not criterion.check_monotonicity(
-                        monotonic_cst[current_split.feature],
-                        lower_bound,
-                        upper_bound,
-                    )
-                ):
-                    continue
-
                 # Reject if min_samples_leaf is not guaranteed
-                if missing_go_to_left:
-                    n_left = current_split.pos - splitter.start + n_missing
-                    n_right = end_non_missing - current_split.pos
-                else:
-                    n_left = current_split.pos - splitter.start
-                    n_right = end_non_missing - current_split.pos + n_missing
                 if splitter.check_presplit_conditions(&current_split, n_missing, missing_go_to_left) == 1:
                     continue
 
@@ -637,6 +606,13 @@ cdef inline intp_t node_split_best(
 
                     current_split.n_missing = n_missing
                     if n_missing == 0:
+                        if missing_go_to_left:
+                            n_left = current_split.pos - splitter.start + n_missing
+                            n_right = end_non_missing - current_split.pos
+                        else:
+                            n_left = current_split.pos - splitter.start
+                            n_right = end_non_missing - current_split.pos + n_missing
+
                         current_split.missing_go_to_left = n_left > n_right
                     else:
                         current_split.missing_go_to_left = missing_go_to_left
@@ -825,14 +801,15 @@ cdef inline int node_split_random(
     Criterion criterion,
     SplitRecord* split,
     ParentInfo* parent_record,
-    bint with_monotonic_cst,
-    const int8_t[:] monotonic_cst,
 ) except -1 nogil:
     """Find the best random split on node samples[start:end]
 
     Returns -1 in case of failure to allocate memory (and raise MemoryError)
     or 0 otherwise.
     """
+    cdef const int8_t[:] monotonic_cst = splitter.monotonic_cst
+    cdef bint with_monotonic_cst = splitter.with_monotonic_cst
+
     # Draw random splits and pick the best
     cdef intp_t start = splitter.start
     cdef intp_t end = splitter.end
@@ -950,10 +927,6 @@ cdef inline int node_split_random(
         criterion.reset()
         criterion.update(current_split.pos)
 
-        # Reject if min_weight_leaf is not satisfied
-        if splitter.check_postsplit_conditions() == 1:
-            continue
-
         # Reject if monotonicity constraints are not satisfied
         if (
             with_monotonic_cst and
@@ -966,16 +939,8 @@ cdef inline int node_split_random(
         ):
             continue
 
-        # Reject if monotonicity constraints are not satisfied
-        if (
-                with_monotonic_cst and
-                monotonic_cst[current_split.feature] != 0 and
-                not criterion.check_monotonicity(
-                    monotonic_cst[current_split.feature],
-                    lower_bound,
-                    upper_bound,
-                )
-        ):
+        # Reject if min_weight_leaf is not satisfied
+        if splitter.check_postsplit_conditions() == 1:
             continue
 
         current_proxy_improvement = criterion.proxy_impurity_improvement()
@@ -1678,8 +1643,6 @@ cdef class BestSplitter(Splitter):
             self.criterion,
             split,
             parent_record,
-            self.with_monotonic_cst,
-            self.monotonic_cst,
         )
 
 cdef class BestSparseSplitter(Splitter):
@@ -1708,8 +1671,6 @@ cdef class BestSparseSplitter(Splitter):
             self.criterion,
             split,
             parent_record,
-            self.with_monotonic_cst,
-            self.monotonic_cst,
         )
 
 cdef class RandomSplitter(Splitter):
@@ -1738,8 +1699,6 @@ cdef class RandomSplitter(Splitter):
             self.criterion,
             split,
             parent_record,
-            self.with_monotonic_cst,
-            self.monotonic_cst,
         )
 
 cdef class RandomSparseSplitter(Splitter):
@@ -1767,6 +1726,4 @@ cdef class RandomSparseSplitter(Splitter):
             self.criterion,
             split,
             parent_record,
-            self.with_monotonic_cst,
-            self.monotonic_cst,
         )

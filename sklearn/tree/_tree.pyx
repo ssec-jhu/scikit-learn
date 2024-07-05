@@ -1,20 +1,5 @@
-# cython: language_level=3
-# cython: boundscheck=False, wraparound=False, initializedcheck=False, cdivision=True
-
-# Authors: Gilles Louppe <g.louppe@gmail.com>
-#          Peter Prettenhofer <peter.prettenhofer@gmail.com>
-#          Brian Holt <bdholt1@gmail.com>
-#          Noel Dawe <noel@dawe.me>
-#          Satrajit Gosh <satrajit.ghosh@gmail.com>
-#          Lars Buitinck
-#          Arnaud Joly <arnaud.v.joly@gmail.com>
-#          Joel Nothman <joel.nothman@gmail.com>
-#          Fares Hedayati <fares.hedayati@gmail.com>
-#          Jacob Schreiber <jmschreiber91@gmail.com>
-#          Nelson Liu <nelson@nelsonliu.me>
-#          Haoyin Xu <haoyinxu@gmail.com>
-#
-# License: BSD 3 clause
+# Authors: The scikit-learn developers
+# SPDX-License-Identifier: BSD-3-Clause
 
 from cpython cimport Py_INCREF, PyObject, PyTypeObject
 from cython.operator cimport dereference as deref
@@ -22,6 +7,8 @@ from libc.math cimport isnan
 from libc.stdint cimport INTPTR_MAX
 from libc.stdlib cimport free, malloc
 from libc.string cimport memcpy, memset
+from libcpp.vector cimport vector
+from libcpp.stack cimport stack
 from libcpp cimport bool
 from libcpp.algorithm cimport pop_heap, push_heap
 from libcpp.vector cimport vector
@@ -47,15 +34,6 @@ cdef extern from "numpy/arrayobject.h":
                                 cnp.npy_intp* strides,
                                 void* data, intp_t flags, object obj)
     intp_t PyArray_SetBaseObject(cnp.ndarray arr, PyObject* obj)
-
-cdef extern from "<stack>" namespace "std" nogil:
-    cdef cppclass stack[T]:
-        ctypedef T value_type
-        stack() except +
-        bint empty()
-        void pop()
-        void push(T&) except +  # Raise c++ exception for bad_alloc -> MemoryError
-        T& top()
 
 # =============================================================================
 # Types and constants
@@ -911,6 +889,11 @@ cdef class BestFirstTreeBuilder(TreeBuilder):
     ) except -1 nogil:
         """Adds node w/ partition ``[start, end)`` to the frontier. """
         cdef SplitRecord split
+
+        # Note: we create a <*SplitRecord> pointer here in order to allow subclasses
+        # to know what kind of SplitRecord to use. In some cases, ObliqueSplitRecord
+        # might be used. The split pointer here knows the size of the underlying Record
+        # because the subclassed splitter will define "pointer_size" accordingly.
         cdef SplitRecord* split_ptr = <SplitRecord *>malloc(splitter.pointer_size())
 
         cdef intp_t node_id

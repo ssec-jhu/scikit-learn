@@ -1,13 +1,5 @@
-# Authors: Gilles Louppe <g.louppe@gmail.com>
-#          Peter Prettenhofer <peter.prettenhofer@gmail.com>
-#          Brian Holt <bdholt1@gmail.com>
-#          Joel Nothman <joel.nothman@gmail.com>
-#          Arnaud Joly <arnaud.v.joly@gmail.com>
-#          Jacob Schreiber <jmschreiber91@gmail.com>
-#          Nelson Liu <nelson@nelsonliu.me>
-#          Haoyin Xu <haoyinxu@gmail.com>
-#
-# License: BSD 3 clause
+# Authors: The scikit-learn developers
+# SPDX-License-Identifier: BSD-3-Clause
 
 # See _tree.pyx for details.
 
@@ -199,3 +191,11 @@ cdef class TreeBuilder:
         const float64_t[:, ::1] y,
         const float64_t[:] sample_weight,
     )
+
+
+cdef _build_pruned_tree(
+    Tree tree,  # OUT
+    Tree orig_tree,
+    const unsigned char[:] leaves_in_subtree,
+    intp_t capacity
+)
