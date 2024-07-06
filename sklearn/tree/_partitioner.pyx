@@ -301,10 +301,10 @@ cdef class SparsePartitioner:
 
         self._init_node_split = sparse_init_node_split
         self._sort_samples_and_feature_values = sparse_sort_samples_and_feature_values
-        # self._find_min_max = sparse_find_min_max
-        # self._next_p = sparse_next_p
-        # self._partition_samples = sparse_partition_samples
-        # self._partition_samples_final = sparse_partition_samples_final
+        self._find_min_max = sparse_find_min_max
+        self._next_p = sparse_next_p
+        self._partition_samples = sparse_partition_samples
+        self._partition_samples_final = sparse_partition_samples_final
 
 
 cdef inline void sparse_init_node_split(Partitioner self, intp_t start, intp_t end) noexcept nogil:
