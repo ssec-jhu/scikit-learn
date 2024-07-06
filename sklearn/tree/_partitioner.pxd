@@ -10,7 +10,7 @@ cdef float32_t EXTRACT_NNZ_SWITCH = 0.1
 # functions. The alternative would have been to use inheritance-based polymorphism
 # but it would have resulted in a ~10% overall tree fitting performance
 # degradation caused by the overhead frequent virtual method lookups.
-#ctypedef fused Partitioner:
+# ctypedef fused Partitioner:
 #    DensePartitioner
 #    SparsePartitioner
 
@@ -67,8 +67,15 @@ cdef class Partitioner:
             float32_t* min_feature_value_out,
             float32_t* max_feature_value_out,
         ) noexcept nogil
-        inline void next_p(self, intp_t* p_prev, intp_t* p) noexcept nogil
-        inline intp_t partition_samples(self, float64_t current_threshold) noexcept nogil        
+        inline void next_p(
+            self,
+            intp_t* p_prev,
+            intp_t* p
+        ) noexcept nogil
+        inline intp_t partition_samples(
+            self,
+            float64_t current_threshold
+        ) noexcept nogil
         inline void partition_samples_final(
             self,
             intp_t best_pos,

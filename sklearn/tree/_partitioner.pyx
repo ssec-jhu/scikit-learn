@@ -6,14 +6,14 @@ from scipy.sparse import issparse
 
 import numpy as np
 
-from ._sort cimport sort, sparse_swap, swap, FEATURE_THRESHOLD
+from ._splitter cimport sort, sparse_swap, FEATURE_THRESHOLD
 
 
 cdef class Partitioner:
     cdef:
         inline void init_node_split(self, intp_t start, intp_t end) noexcept nogil:
             self._init_node_split(self, start, end)
-        
+
         inline void sort_samples_and_feature_values(
             self,
             intp_t current_feature
@@ -33,7 +33,7 @@ cdef class Partitioner:
 
         inline intp_t partition_samples(self, float64_t current_threshold) noexcept nogil:
             return self._partition_samples(self, current_threshold)
-        
+
         inline void partition_samples_final(
             self,
             intp_t best_pos,
@@ -536,22 +536,22 @@ cdef inline void sparse_extract_nnz(SparsePartitioner self, intp_t feature) noex
     if ((1 - self.is_samples_sorted) * n_samples * log(n_samples) +
             n_samples * log(n_indices) < EXTRACT_NNZ_SWITCH * n_indices):
         extract_nnz_binary_search(X_indices, X_data,
-                                    indptr_start, indptr_end,
-                                    samples, self.start, self.end,
-                                    index_to_samples,
-                                    feature_values,
-                                    &self.end_negative, &self.start_positive,
-                                    sorted_samples, &self.is_samples_sorted)
+                                  indptr_start, indptr_end,
+                                  samples, self.start, self.end,
+                                  index_to_samples,
+                                  feature_values,
+                                  &self.end_negative, &self.start_positive,
+                                  sorted_samples, &self.is_samples_sorted)
 
     # Using an index to samples  technique to extract non zero values
     # index_to_samples is a mapping from X_indices to samples
     else:
         extract_nnz_index_to_samples(X_indices, X_data,
-                                        indptr_start, indptr_end,
-                                        samples, self.start, self.end,
-                                        index_to_samples,
-                                        feature_values,
-                                        &self.end_negative, &self.start_positive)
+                                     indptr_start, indptr_end,
+                                     samples, self.start, self.end,
+                                     index_to_samples,
+                                     feature_values,
+                                     &self.end_negative, &self.start_positive)
 
 
 cdef int compare_SIZE_t(const void* a, const void* b) noexcept nogil:
