@@ -9,6 +9,8 @@
 #          Samuel Carliles <scarlil1@jhu.edu>
 #
 # License: BSD 3 clause
+# SPDX-License-Identifier: BSD-3-Clause
+
 
 # See _tree.pyx for details.
 
@@ -287,3 +289,11 @@ cdef class TreeBuilder:
         const float64_t[:, ::1] y,
         const float64_t[:] sample_weight,
     )
+
+
+cdef _build_pruned_tree(
+    Tree tree,  # OUT
+    Tree orig_tree,
+    const unsigned char[:] leaves_in_subtree,
+    intp_t capacity
+)

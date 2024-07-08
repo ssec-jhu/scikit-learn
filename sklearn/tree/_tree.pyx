@@ -16,6 +16,7 @@
 #          Samuel Carliles <scarlil1@jhu.edu>
 #
 # License: BSD 3 clause
+# SPDX-License-Identifier: BSD-3-Clause
 
 from cpython cimport Py_INCREF, PyObject, PyTypeObject
 from cython.operator cimport dereference as deref
@@ -23,6 +24,8 @@ from libc.math cimport isnan, NAN
 from libc.stdint cimport INTPTR_MAX
 from libc.stdlib cimport free, malloc
 from libc.string cimport memcpy, memset
+from libcpp.vector cimport vector
+from libcpp.stack cimport stack
 from libcpp cimport bool
 from libcpp.algorithm cimport pop_heap, push_heap
 from libcpp.vector cimport vector
@@ -49,7 +52,6 @@ cdef extern from "numpy/arrayobject.h":
                                 cnp.npy_intp* strides,
                                 void* data, intp_t flags, object obj)
     intp_t PyArray_SetBaseObject(cnp.ndarray arr, PyObject* obj)
-
 
 # =============================================================================
 # Types and constants
@@ -790,6 +792,11 @@ cdef class BestFirstTreeBuilder(TreeBuilder):
     ) except -1 nogil:
         """Adds node w/ partition ``[start, end)`` to the frontier. """
         cdef SplitRecord split
+
+        # Note: we create a <*SplitRecord> pointer here in order to allow subclasses
+        # to know what kind of SplitRecord to use. In some cases, ObliqueSplitRecord
+        # might be used. The split pointer here knows the size of the underlying Record
+        # because the subclassed splitter will define "pointer_size" accordingly.
         cdef SplitRecord* split_ptr = <SplitRecord *>malloc(splitter.pointer_size())
 
         cdef intp_t node_id

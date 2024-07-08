@@ -1,4 +1,4 @@
-from libc.math cimport floor, log2, pow
+from libc.math cimport floor, log2, pow, isnan, NAN
 
 
 cdef class Honesty:
@@ -18,9 +18,9 @@ cdef class Honesty:
             tree_event_handlers = []
 
         (<Views>self.env.data_views).partitioner = honest_partitioner
-        self.splitter_event_handlers = [NodeSortFeatureHandler(&self.env)] + splitter_event_handlers
-        self.split_conditions = [HonestMinSamplesLeafCondition(min_samples_leaf, &self.env)] + split_conditions
-        self.tree_event_handlers = [SetActiveParentHandler(&self.env), AddNodeHandler(&self.env)] + tree_event_handlers
+        self.splitter_event_handlers = [NodeSortFeatureHandler(self)] + splitter_event_handlers
+        self.split_conditions = [HonestMinSamplesLeafCondition(self, min_samples_leaf)] + split_conditions
+        self.tree_event_handlers = [SetActiveParentHandler(self), AddNodeHandler(self)] + tree_event_handlers
 
 
 cdef bint _handle_set_active_parent(
@@ -47,7 +47,7 @@ cdef bint _handle_set_active_parent(
     if data.parent_node_id < 0:
         env.active_parent = NULL
         node.start_idx = 0
-        node.n = env.samples.shape[0]
+        node.n = (<Views>env.data_views).samples.shape[0]
     else:
         env.active_parent = &(env.tree[data.parent_node_id])
         if env.active_is_left:
@@ -57,17 +57,17 @@ cdef bint _handle_set_active_parent(
             node.start_idx = env.active_parent.split_idx
             node.n = env.active_parent.n - env.active_parent.split_idx
 
-    env.partitioner.init_node_split(node.start_idx, node.start_idx + node.n)
+    (<Views>env.data_views).partitioner.init_node_split(node.start_idx, node.start_idx + node.n)
 
     return True
 
 cdef class SetActiveParentHandler(EventHandler):
-    def __cinit__(self, HonestEnv* env):
+    def __cinit__(self, Honesty h):
         self._event_types = [TreeBuildEvent.SET_ACTIVE_PARENT]
         self.event_types = self._event_types
 
         self.c.f = _handle_set_active_parent
-        self.c.e = env
+        self.c.e = &h.env
 
 
 cdef bint _handle_sort_feature(
@@ -85,17 +85,17 @@ cdef bint _handle_sort_feature(
     node.feature = data.feature
     node.split_idx = 0
     node.split_value = NAN
-    env.partitioner.sort_samples_and_feature_values(node.feature)
+    (<Views>env.data_views).partitioner.sort_samples_and_feature_values(node.feature)
 
     return True
 
 cdef class NodeSortFeatureHandler(EventHandler):
-    def __cinit__(self, HonestEnv* env):
+    def __cinit__(self, Honesty h):
         self._event_types = [NodeSplitEvent.SORT_FEATURE]
         self.event_types = self._event_types
 
         self.c.f = _handle_sort_feature
-        self.c.e = env
+        self.c.e = &h.env
 
 
 cdef bint _handle_add_node(
@@ -107,24 +107,27 @@ cdef bint _handle_add_node(
         return True
 
     cdef HonestEnv* env = <HonestEnv*>handler_env
+    cdef const float32_t[:, :] X = (<Views>env.data_views).X
+    cdef intp_t[::1] samples = (<Views>env.data_views).samples
     cdef float64_t h, feature_value
     cdef intp_t i, n_left, n_missing, size = env.tree.size()
     cdef TreeBuildAddNodeEventData* data = <TreeBuildAddNodeEventData*>event_data
-    cdef Interval *interval, *parent
+    cdef Interval *interval
+    cdef Interval *parent
 
     if data.node_id >= size:
         # as a heuristic, assume a complete tree and add a level
         h = floor(log2(size))
         env.tree.resize(size + <intp_t>pow(2, h + 1))
 
-    interval = &(env.tree[node_id])
+    interval = &(env.tree[data.node_id])
     interval.feature = data.feature
-    interval.split_value = data.split_value
+    interval.split_value = data.split_point
 
     if data.parent_node_id < 0:
         # the node being added is the tree root
         interval.start_idx = 0
-        interval.n = env.samples.shape[0]
+        interval.n = samples.shape[0]
     else:
         parent = &(env.tree[data.parent_node_id])
 
@@ -138,32 +141,32 @@ cdef bint _handle_add_node(
     # *we* don't need to sort to find the split pos we'll need for partitioning,
     # but the partitioner internals are so stateful we had better just do it
     # to ensure that it's in the expected state
-    env.partitioner.init_node_split(interval.start_idx, interval.start_idx + interval.n)
-    env.partitioner.sort_samples_and_feature_values(interval.feature)
+    (<Views>env.data_views).partitioner.init_node_split(interval.start_idx, interval.start_idx + interval.n)
+    (<Views>env.data_views).partitioner.sort_samples_and_feature_values(interval.feature)
 
     # count n_left to find split pos
     n_left = 0
     i = interval.start_idx
-    feature_value = env.X[env.samples[i], interval.feature]
+    feature_value = X[samples[i], interval.feature]
 
     while (not isnan(feature_value)) and feature_value < interval.split_value and i < interval.start_idx + interval.n:
         n_left += 1
         i += 1
-        feature_value = env.X[env.samples[i], interval.feature]
+        feature_value = X[samples[i], interval.feature]
 
     interval.split_idx = interval.start_idx + n_left
 
-    env.partitioner.partition_samples_final(
-        interval.split_idx, interval.split_value, interval.feature, partitioner.n_missing
+    (<Views>env.data_views).partitioner.partition_samples_final(
+        interval.split_idx, interval.split_value, interval.feature, (<Views>env.data_views).partitioner.n_missing
         )
 
 cdef class AddNodeHandler(EventHandler):
-    def __cinit__(self, HonestEnv* env):
+    def __cinit__(self, Honesty h):
         self._event_types = [TreeBuildEvent.ADD_NODE]
         self.event_types = self._event_types
 
         self.c.f = _handle_add_node
-        self.c.e = env
+        self.c.e = &h.env
 
 
 cdef bint _honest_min_sample_leaf_condition(
@@ -178,19 +181,18 @@ cdef bint _honest_min_sample_leaf_condition(
     SplitConditionEnv split_condition_env
 ) noexcept nogil:
     cdef MinSamplesLeafConditionEnv* env = <MinSamplesLeafConditionEnv*>split_condition_env
-    cdef HonestEnv* honest_env = env.honest_env
-    cdef Interval* node = env.active_node
+    cdef Interval* node = &env.honest_env.active_node
 
     cdef intp_t min_samples_leaf = env.min_samples
     cdef intp_t end_non_missing, n_left, n_right
 
     # we don't care about n_missing in the structure set
-    n_missing = honest_env.partitioner.n_missing
+    n_missing = (<Views>env.honest_env.data_views).partitioner.n_missing
     end_non_missing = node.start_idx + node.n - n_missing
 
     # we don't care about split_pos in the structure set,
     # need to scan forward in the honest set based on split_value to find it
-    while node.split_idx < node.start_idx + node.n and env.X[node.split_idx, node.feature] <= split_value:
+    while node.split_idx < node.start_idx + node.n and (<Views>env.honest_env.data_views).X[node.split_idx, node.feature] <= split_value:
         node.split_idx += 1
     
     if missing_go_to_left:
@@ -207,9 +209,9 @@ cdef bint _honest_min_sample_leaf_condition(
     return True
 
 cdef class HonestMinSamplesLeafCondition(SplitCondition):
-    def __cinit__(self, intp_t min_samples, HonestEnv* env):
+    def __cinit__(self, Honesty h, intp_t min_samples):
         self._env.min_samples = min_samples
-        self._env.honest_env = env
+        self._env.honest_env = &h.env
 
         self.c.f = _honest_min_sample_leaf_condition
         self.c.e = &self._env
