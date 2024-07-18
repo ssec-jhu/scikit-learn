@@ -1,18 +1,291 @@
 # Adopted from: https://github.com/neurodata/honest-forests
 
-
+import copy
 import numpy as np
-from sklearn.base import ClassifierMixin, MetaEstimatorMixin, _fit_context, clone
-from sklearn.model_selection import StratifiedShuffleSplit
-from sklearn.utils._param_validation import HasMethods, Interval, RealNotInt, StrOptions
-from sklearn.utils.multiclass import _check_partial_fit_first_call, check_classification_targets
-from sklearn.utils.validation import check_is_fitted, check_X_y
+from scipy.sparse import issparse
 
-from .._lib.sklearn.tree import DecisionTreeClassifier
-from .._lib.sklearn.tree._classes import BaseDecisionTree
+from ..base import ClassifierMixin, MetaEstimatorMixin, _fit_context, clone, is_classifier
+from ..model_selection import StratifiedShuffleSplit
+from ..utils import check_random_state, compute_sample_weight
+from ..utils._param_validation import HasMethods, Interval, RealNotInt, StrOptions
+from ..utils.multiclass import _check_partial_fit_first_call, check_classification_targets
+from ..utils.validation import check_is_fitted, check_X_y
+
+from ._classes import (
+    BaseDecisionTree, DecisionTreeClassifier,
+    CRITERIA_CLF, CRITERIA_REG, DENSE_SPLITTERS, SPARSE_SPLITTERS
+)
+from ._criterion import BaseCriterion
+from ._honesty import Honesty
+from ._tree import DOUBLE
 
 
-class HonestTreeClassifier(MetaEstimatorMixin, ClassifierMixin, BaseDecisionTree):
+class HonestTree(BaseDecisionTree):
+    _parameter_constraints: dict = {
+        **BaseDecisionTree._parameter_constraints,
+        "honest_fraction": [Interval(RealNotInt, 0.0, 1.0, closed="neither")],
+        "honest_prior": [StrOptions({"empirical", "uniform", "ignore"})],
+        "stratify": ["boolean"],
+    }
+
+    def __init__(
+        self,
+        target_tree,
+        honest_fraction=0.5,
+        honest_prior="empirical",
+        stratify=False
+    ):
+        self.target_tree = target_tree
+        self.honest_fraction = honest_fraction
+        self.honest_prior = honest_prior
+        self.stratify = stratify
+
+    @_fit_context(prefer_skip_nested_validation=True)
+    def fit(
+        self,
+        X,
+        y,
+        sample_weight=None,
+        check_input=True,
+        missing_values_in_feature_mask=None,
+        classes=None,
+    ):
+        """Build an honest tree from the training set (X, y).
+
+        Parameters
+        ----------
+        X : {array-like, sparse matrix} of shape (n_samples, n_features)
+            The training input samples. Internally, it will be converted to
+            ``dtype=np.float32`` and if a sparse matrix is provided
+            to a sparse ``csc_matrix``.
+
+        y : array-like of shape (n_samples,) or (n_samples, n_outputs)
+
+        sample_weight : array-like of shape (n_samples,), default=None
+            Sample weights. If None, then samples are equally weighted. Splits
+            that would create child nodes with net zero or negative weight are
+            ignored while searching for a split in each node. Splits are also
+            ignored if they would result in any single class carrying a
+            negative weight in either child node.
+
+        check_input : bool, default=True
+            Allow to bypass several input checking.
+            Don't use this parameter unless you know what you do.
+
+        classes : array-like of shape (n_classes,), default=None
+            List of all the classes that can possibly appear in the y vector.
+
+        Returns
+        -------
+        self : HonestTree
+            Fitted tree estimator.
+        """
+        random_state = check_random_state(self.target_tree.random_state)
+
+        if check_input:
+            X, y = check_X_y(X, y, multi_output=True)
+
+        # Determine output settings
+        self.init_output_shape(X, y, classes)
+
+        # obtain the structure sample weights
+        sample_weights_structure = self._partition_honest_indices(y, sample_weight)
+
+        # compute the honest sample indices
+        not_honest_mask = np.ones(len(y), dtype=bool)
+        not_honest_mask[self.honest_indices_] = False
+
+        if sample_weight is None:
+            sample_weight_leaves = np.ones((len(y),), dtype=np.float64)
+        else:
+            sample_weight_leaves = np.array(sample_weight)
+        sample_weight_leaves[not_honest_mask] = 0
+
+        # determine the honest indices using the sample weight
+        nonzero_indices = np.where(sample_weight_leaves > 0)[0]
+        # sample the structure indices
+        self.honest_indices_ = nonzero_indices
+
+        # create honesty, set up listeners in target tree
+        self.honesty = Honesty(
+            X,
+            self.honest_indices_,
+            self.target_tree.min_samples_leaf
+        )
+
+        self.target_tree.presplit_conditions = self.honesty.presplit_conditions
+        self.target_tree.postsplit_conditions = self.honesty.postsplit_conditions
+        self.target_tree.splitter_listeners = self.honesty.splitter_event_handlers
+        self.target_tree.tree_build_listeners = self.honesty.tree_build_event_handlers
+
+        # Learn structure on subsample
+        # XXX: this allows us to use BaseDecisionTree without partial_fit API
+        try:
+            self.target_tree._fit(
+                X,
+                y,
+                sample_weight=sample_weights_structure,
+                check_input=check_input,
+                missing_values_in_feature_mask=missing_values_in_feature_mask,
+                classes=classes,
+            )
+        except Exception:
+            self.target_tree._fit(
+                X,
+                y,
+                sample_weight=sample_weights_structure,
+                check_input=check_input,
+                missing_values_in_feature_mask=missing_values_in_feature_mask,
+            )
+        # self._inherit_estimator_attributes()
+
+
+        # self._fit_leaves(X, y, sample_weight=sample_weight_leaves)
+        return self
+
+    
+    def _check_input(self, X, y):
+        # Need to validate separately here.
+        # We can't pass multi_output=True because that would allow y to be
+        # csr.
+
+        # _compute_missing_values_in_feature_mask will check for finite values and
+        # compute the missing mask if the tree supports missing values
+        check_X_params = dict(
+            dtype=DTYPE, accept_sparse="csc", force_all_finite=False
+        )
+        check_y_params = dict(ensure_2d=False, dtype=None)
+        if y is not None or self._get_tags()["requires_y"]:
+            X, y = self._validate_data(
+                X, y, validate_separately=(check_X_params, check_y_params)
+            )
+        else:
+            X = self._validate_data(X, **check_X_params)
+
+        if issparse(X):
+            X.sort_indices()
+
+            if X.indices.dtype != np.intc or X.indptr.dtype != np.intc:
+                raise ValueError(
+                    "No support for np.int64 index based sparse matrices"
+                )
+
+        if y is not None and self.criterion == "poisson":
+            if np.any(y < 0):
+                raise ValueError(
+                    "Some value(s) of y are negative which is"
+                    " not allowed for Poisson regression."
+                )
+            if np.sum(y) <= 0:
+                raise ValueError(
+                    "Sum of y is not positive which is "
+                    "necessary for Poisson regression."
+                )
+
+
+    def _init_output_shape(self, X, y, classes=None):
+        # Determine output settings
+        self.n_samples_, self.n_features_in_ = X.shape
+
+        # Do preprocessing if 'y' is passed
+        is_classification = False
+        if y is not None:
+            is_classification = is_classifier(self)
+            y = np.atleast_1d(y)
+            expanded_class_weight = None
+
+            if y.ndim == 1:
+                # reshape is necessary to preserve the data contiguity against vs
+                # [:, np.newaxis] that does not.
+                y = np.reshape(y, (-1, 1))
+
+            self.n_outputs_ = y.shape[1]
+
+            if is_classification:
+                check_classification_targets(y)
+                y = np.copy(y)
+
+                self.classes_ = []
+                self.n_classes_ = []
+
+                if self.class_weight is not None:
+                    y_original = np.copy(y)
+
+                y_encoded = np.zeros(y.shape, dtype=int)
+                if classes is not None:
+                    classes = np.atleast_1d(classes)
+                    if classes.ndim == 1:
+                        classes = np.array([classes])
+
+                    for k in classes:
+                        self.classes_.append(np.array(k))
+                        self.n_classes_.append(np.array(k).shape[0])
+
+                    for i in range(self.n_samples_):
+                        for j in range(self.n_outputs_):
+                            y_encoded[i, j] = np.where(self.classes_[j] == y[i, j])[0][
+                                0
+                            ]
+                else:
+                    for k in range(self.n_outputs_):
+                        classes_k, y_encoded[:, k] = np.unique(
+                            y[:, k], return_inverse=True
+                        )
+                        self.classes_.append(classes_k)
+                        self.n_classes_.append(classes_k.shape[0])
+
+                y = y_encoded
+
+                if self.class_weight is not None:
+                    expanded_class_weight = compute_sample_weight(
+                        self.class_weight, y_original
+                    )
+
+                self.n_classes_ = np.array(self.n_classes_, dtype=np.intp)
+                self._n_classes_ = self.n_classes_
+            if getattr(y, "dtype", None) != DOUBLE or not y.flags.contiguous:
+                y = np.ascontiguousarray(y, dtype=DOUBLE)
+
+            if len(y) != self.n_samples_:
+                raise ValueError(
+                    "Number of labels=%d does not match number of samples=%d"
+                    % (len(y), self.n_samples_)
+                )
+
+
+    def _partition_honest_indices(self, y, sample_weight):
+        rng = np.random.default_rng(self.random_state)
+
+        # Account for bootstrapping too
+        if sample_weight is None:
+            _sample_weight = np.ones((len(y),), dtype=np.float64)
+        else:
+            _sample_weight = np.array(sample_weight)
+
+        nonzero_indices = np.where(_sample_weight > 0)[0]
+        # sample the structure indices
+        if self.stratify:
+            ss = StratifiedShuffleSplit(
+                n_splits=1, test_size=self.honest_fraction, random_state=self.random_state
+            )
+            for structure_idx, _ in ss.split(
+                np.zeros((len(nonzero_indices), 1)), y[nonzero_indices]
+            ):
+                self.structure_indices_ = nonzero_indices[structure_idx]
+        else:
+            self.structure_indices_ = rng.choice(
+                nonzero_indices,
+                int((1 - self.honest_fraction) * len(nonzero_indices)),
+                replace=False,
+            )
+
+        self.honest_indices_ = np.setdiff1d(nonzero_indices, self.structure_indices_)
+        _sample_weight[self.honest_indices_] = 0
+
+        return _sample_weight
+
+
+class HonestTreeClassifier(MetaEstimatorMixin, ClassifierMixin, HonestTree):
     """
     A decision tree classifier with honest predictions.
 
@@ -274,17 +547,6 @@ class HonestTreeClassifier(MetaEstimatorMixin, ClassifierMixin, BaseDecisionTree
     array([0.93333333, 0.93333333, 1.        , 1.        , 0.93333333,
            0.8       , 0.8       , 0.93333333, 1.        , 1.        ])
     """
-
-    _parameter_constraints: dict = {
-        **BaseDecisionTree._parameter_constraints,
-        "tree_estimator": [
-            HasMethods(["fit", "predict", "predict_proba", "apply"]),
-            None,
-        ],
-        "honest_fraction": [Interval(RealNotInt, 0.0, 1.0, closed="neither")],
-        "honest_prior": [StrOptions({"empirical", "uniform", "ignore"})],
-        "stratify": ["boolean"],
-    }
 
     def __init__(
         self,

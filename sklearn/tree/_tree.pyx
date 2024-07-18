@@ -581,6 +581,7 @@ cdef class BestFirstTreeBuilder(TreeBuilder):
         float64_t min_impurity_decrease,
         unsigned char store_leaf_values=False,
         cnp.ndarray initial_roots=None,
+        EventHandler[:] listeners=None
     ):
         self.splitter = splitter
         self.min_samples_split = min_samples_split
@@ -591,6 +592,8 @@ cdef class BestFirstTreeBuilder(TreeBuilder):
         self.min_impurity_decrease = min_impurity_decrease
         self.store_leaf_values = store_leaf_values
         self.initial_roots = initial_roots
+
+        self.event_broker = EventBroker(listeners, [TreeBuildEvent.ADD_NODE, TreeBuildEvent.UPDATE_NODE])
 
     def __reduce__(self):
         """Reduce re-implementation, for pickling."""

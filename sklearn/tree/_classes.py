@@ -545,6 +545,7 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
                 max_depth,
                 self.min_impurity_decrease,
                 self.store_leaf_values,
+                listeners = self.listeners
             )
         else:
             builder = BestFirstTreeBuilder(
@@ -556,6 +557,7 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
                 max_leaf_nodes,
                 self.min_impurity_decrease,
                 self.store_leaf_values,
+                listeners = self.listeners
             )
         builder.build(self.tree_, X, y, sample_weight, missing_values_in_feature_mask)
 

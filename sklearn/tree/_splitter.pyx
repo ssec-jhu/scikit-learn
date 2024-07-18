@@ -282,39 +282,75 @@ cdef class Splitter(BaseSplitter):
         self.min_samples_leaf_condition = MinSamplesLeafCondition()
         self.min_weight_leaf_condition = MinWeightLeafCondition()
 
-        self.presplit_conditions.resize(
-            (len(presplit_conditions) if presplit_conditions is not None else 0)
-            + (2 if self.with_monotonic_cst else 1)
-        )
-        self.postsplit_conditions.resize(
-            (len(postsplit_conditions) if postsplit_conditions is not None else 0)
-            + (2 if self.with_monotonic_cst else 1)
-        )
+        #self.presplit_conditions.resize(
+        #    (len(presplit_conditions) if presplit_conditions is not None else 0)
+        #    + (2 if self.with_monotonic_cst else 1)
+        #)
+        #self.postsplit_conditions.resize(
+        #    (len(postsplit_conditions) if postsplit_conditions is not None else 0)
+        #    + (2 if self.with_monotonic_cst else 1)
+        #)
 
-        cdef int offset = 0
-        self.presplit_conditions[offset] = self.min_samples_leaf_condition.c
-        self.postsplit_conditions[offset] = self.min_weight_leaf_condition.c
-        offset += 1
+        #cdef int offset = 0
+        #self.presplit_conditions[offset] = self.min_samples_leaf_condition.c
+        #self.postsplit_conditions[offset] = self.min_weight_leaf_condition.c
+        #offset += 1
+
+        l_pre = [self.min_samples_leaf_condition]
+        l_post = [self.min_weight_leaf_condition]
 
         if(self.with_monotonic_cst):
             self.monotonic_constraint_condition = MonotonicConstraintCondition()
-            self.presplit_conditions[offset] = self.monotonic_constraint_condition.c
-            self.postsplit_conditions[offset] = self.monotonic_constraint_condition.c
-            offset += 1
+            l_pre.append(self.monotonic_constraint_condition)
+            l_post.append(self.monotonic_constraint_condition)
+            #self.presplit_conditions[offset] = self.monotonic_constraint_condition.c
+            #self.postsplit_conditions[offset] = self.monotonic_constraint_condition.c
+            #offset += 1
 
-        cdef int i
+        #cdef int i
         if presplit_conditions is not None:
-            for i in range(len(presplit_conditions)):
-                self.presplit_conditions[i + offset] = presplit_conditions[i].c
+            l_pre += presplit_conditions
+            #for i in range(len(presplit_conditions)):
+            #    self.presplit_conditions[i + offset] = presplit_conditions[i].c
         
         if postsplit_conditions is not None:
-            for i in range(len(postsplit_conditions)):
-                self.postsplit_conditions[i + offset] = postsplit_conditions[i].c
+            l_post += postsplit_conditions
+            #for i in range(len(postsplit_conditions)):
+            #    self.postsplit_conditions[i + offset] = postsplit_conditions[i].c
         
+        self.presplit_conditions.resize(0)
+        self.add_presplit_conditions(l_pre)
+
+        self.postsplit_conditions.resize(0)
+        self.add_postsplit_conditions(l_post)
+
         self.split_record_factory.f = _base_split_record_factory
         self.split_record_factory.e = NULL
 
+    def add_listeners(self, EventHandler[:] listeners, int[:] event_types):
+        self.broker.add_listeners(listeners, event_types)
+    
+    def add_presplit_conditions(self, SplitCondition[:] presplit_conditions):
+        self._add_conditions(self.presplit_conditions, presplit_conditions)
+    
+    def add_postsplit_conditions(self, SplitCondition[:] postsplit_conditions):
+        self._add_conditions(self.postsplit_conditions, postsplit_conditions)
 
+    cdef void _add_conditions(
+        self,
+        vector[SplitConditionClosure] v,
+        SplitCondition[:] split_conditions
+    ):
+        cdef int offset, ct, i
+
+        offset = v.size()
+        if split_conditions is not None:
+            ct = len(split_conditions)
+            v.resize(offset + ct)
+            for i in range(ct):
+                v[i + offset] = split_conditions[i].c
+
+    
     def __reduce__(self):
         return (type(self), (self.criterion,
                              self.max_features,

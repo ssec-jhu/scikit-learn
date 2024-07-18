@@ -5,7 +5,8 @@
 # See _honesty.pyx for details.
 
 from ._events cimport EventData, EventHandler, EventHandlerEnv, EventType
-from ._splitter cimport Partitioner, Splitter
+from ._partitioner cimport Partitioner
+from ._splitter cimport Splitter
 from ._splitter cimport NodeSplitEvent, NodeSortFeatureEventData, NodeSplitEventData
 from ._splitter cimport SplitConditionEnv, SplitConditionFunction, SplitConditionClosure, SplitCondition
 from ._tree cimport TreeBuildEvent, TreeBuildSetActiveParentEventData, TreeBuildAddNodeEventData
@@ -26,7 +27,7 @@ cdef class Views:
     cdef:
         const float32_t[:, :] X
         intp_t[::1] samples
-        float32_t[::1] feature_values
+        float32_t[::1] feature_values   # temp. array holding feature values
         Partitioner partitioner
 
 cdef struct HonestEnv:

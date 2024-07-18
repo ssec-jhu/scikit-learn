@@ -25,5 +25,5 @@ cdef class EventHandler:
     cdef EventHandlerClosure c
 
 cdef class EventBroker:
-    cdef vector[vector[EventHandlerClosure]] listeners
+    cdef vector[vector[EventHandlerClosure]] listeners # listeners acts as a map from EventType to corresponding event handlers
     cdef bint fire_event(self, EventType event_type, EventData event_data) noexcept nogil

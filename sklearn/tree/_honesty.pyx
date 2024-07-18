@@ -1,11 +1,19 @@
 from libc.math cimport floor, log2, pow, isnan, NAN
 
+from ._partitioner cimport DensePartitioner, SparsePartitioner
+
+import numpy as np
+from scipy.sparse import issparse
+
 
 cdef class Honesty:
     def __cinit__(
         self,
-        Partitioner honest_partitioner,
+        const float32_t[:, :] X,
+        intp_t[::1] samples,
         intp_t min_samples_leaf,
+        const unsigned char[::1] missing_values_in_feature_mask = None,
+        Partitioner honest_partitioner = None,
         list splitter_event_handlers = None,
         list split_conditions = None,
         list tree_event_handlers = None
@@ -17,10 +25,48 @@ cdef class Honesty:
         if tree_event_handlers is None:
             tree_event_handlers = []
 
-        (<Views>self.env.data_views).partitioner = honest_partitioner
+        self.views.X = X
+        self.views.samples = samples
+        self.views.feature_values = np.empty(len(self.honest_indices_), dtype=np.float32)
+        self.views.partitioner = (
+            honest_partitioner if honest_partitioner is not None
+            else Honesty.create_partitioner(
+                self.views.X,
+                self.views.samples,
+                self.views.feature_values,
+                missing_values_in_feature_mask
+            )
+        )
+        self.env.data_views = <void*>self.views
+
         self.splitter_event_handlers = [NodeSortFeatureHandler(self)] + splitter_event_handlers
         self.split_conditions = [HonestMinSamplesLeafCondition(self, min_samples_leaf)] + split_conditions
         self.tree_event_handlers = [SetActiveParentHandler(self), AddNodeHandler(self)] + tree_event_handlers
+
+    @staticmethod
+    def inject_splitter(
+        Splitter splitter,
+        SplitCondition[:] presplit_conditions = None,
+        SplitCondition[:] postsplit_conditions = None,
+        EventHandler[:] listeners = None
+    ):
+        if presplit_conditions is not None:
+            splitter.add_presplit_conditions(presplit_conditions)
+
+        if postsplit_conditions is not None:
+            splitter.add_postsplit_conditions(postsplit_conditions)
+
+        if listeners is not None:
+            splitter.add_listeners(listeners, [NodeSplitEvent.SORT_FEATURE])
+
+    
+    @staticmethod
+    def create_partitioner(X, samples, feature_values, missing_values_in_feature_mask):
+        return SparsePartitioner(
+            X, samples, feature_values, missing_values_in_feature_mask
+        ) if issparse(X) else DensePartitioner(
+            X, samples, feature_values, missing_values_in_feature_mask
+        )
 
 
 cdef bint _handle_set_active_parent(

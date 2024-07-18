@@ -202,6 +202,13 @@ cdef class Splitter(BaseSplitter):
         float64_t upper_bound
     ) noexcept nogil
 
+    cdef void _add_conditions(
+        self,
+        vector[SplitConditionClosure] v,
+        SplitCondition[:] split_conditions
+    )
+
+
 cdef void shift_missing_values_to_left_if_required(
     SplitRecord* best,
     intp_t[::1] samples,
