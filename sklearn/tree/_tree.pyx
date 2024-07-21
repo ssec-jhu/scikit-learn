@@ -82,7 +82,7 @@ cdef class TreeBuilder:
         object X,
         const float64_t[:, ::1] y,
         const float64_t[:] sample_weight=None,
-        const unsigned char[::1] missing_values_in_feature_mask=None,
+        const uint8_t[::1] missing_values_in_feature_mask=None,
     ):
         """Build a decision tree from the training set (X, y)."""
         pass
@@ -93,7 +93,7 @@ cdef class TreeBuilder:
         object X,
         const float64_t[:, ::1] y,
         const float64_t[:] sample_weight=None,
-        const unsigned char[::1] missing_values_in_feature_mask=None,
+        const uint8_t[::1] missing_values_in_feature_mask=None,
     ):
         """Build a decision tree from the training set (X, y)."""
         pass
@@ -163,7 +163,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
         float64_t min_weight_leaf,
         intp_t max_depth,
         float64_t min_impurity_decrease,
-        unsigned char store_leaf_values=False,
+        uint8_t store_leaf_values=False,
         cnp.ndarray initial_roots=None,
     ):
         self.splitter = splitter
@@ -192,7 +192,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
         object X,
         const float64_t[:, ::1] y,
         const float64_t[:] sample_weight=None,
-        const unsigned char[::1] missing_values_in_feature_mask=None,
+        const uint8_t[::1] missing_values_in_feature_mask=None,
     ):
         """Initialize a list of roots"""
         X, y, sample_weight = self._check_input(X, y, sample_weight)
@@ -256,7 +256,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
         object X,
         const float64_t[:, ::1] y,
         const float64_t[:] sample_weight=None,
-        const unsigned char[::1] missing_values_in_feature_mask=None,
+        const uint8_t[::1] missing_values_in_feature_mask=None,
     ):
         """Build a decision tree from the training set (X, y)."""
 
@@ -271,7 +271,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
         cdef intp_t min_samples_split = self.min_samples_split
         cdef float64_t min_impurity_decrease = self.min_impurity_decrease
 
-        cdef unsigned char store_leaf_values = self.store_leaf_values
+        cdef uint8_t store_leaf_values = self.store_leaf_values
         cdef cnp.ndarray initial_roots = self.initial_roots
 
         # Initial capacity
@@ -676,7 +676,7 @@ cdef class BestFirstTreeBuilder(TreeBuilder):
         intp_t max_depth,
         intp_t max_leaf_nodes,
         float64_t min_impurity_decrease,
-        unsigned char store_leaf_values=False,
+        uint8_t store_leaf_values=False,
         cnp.ndarray initial_roots=None,
     ):
         self.splitter = splitter
@@ -707,7 +707,7 @@ cdef class BestFirstTreeBuilder(TreeBuilder):
         object X,
         const float64_t[:, ::1] y,
         const float64_t[:] sample_weight=None,
-        const unsigned char[::1] missing_values_in_feature_mask=None,
+        const uint8_t[::1] missing_values_in_feature_mask=None,
     ):
         """Build a decision tree from the training set (X, y)."""
 
@@ -718,7 +718,7 @@ cdef class BestFirstTreeBuilder(TreeBuilder):
         cdef Splitter splitter = self.splitter
         cdef intp_t max_leaf_nodes = self.max_leaf_nodes
 
-        cdef unsigned char store_leaf_values = self.store_leaf_values
+        cdef uint8_t store_leaf_values = self.store_leaf_values
 
         # Recursive partition (without actual recursion)
         splitter.init(X, y, sample_weight, missing_values_in_feature_mask)
@@ -984,7 +984,7 @@ cdef class BaseTree:
 
     Downstream classes must implement methods to actually traverse the tree.
     """
-    cdef int _resize(
+    cdef intp_t _resize(
         self,
         intp_t capacity
     ) except -1 nogil:
@@ -999,7 +999,7 @@ cdef class BaseTree:
             with gil:
                 raise MemoryError()
 
-    cdef int _resize_c(self, intp_t capacity=INTPTR_MAX) except -1 nogil:
+    cdef intp_t _resize_c(self, intp_t capacity=INTPTR_MAX) except -1 nogil:
         """Guts of _resize
 
         Returns -1 in case of failure to allocate memory (and raise MemoryError)
@@ -1092,7 +1092,7 @@ cdef class BaseTree:
         cdef float32_t feature = X_ndarray[sample_index, node.feature]
         return feature
 
-    cdef int _add_node(
+    cdef intp_t _add_node(
         self,
         intp_t parent,
         bint is_left,
@@ -1101,7 +1101,7 @@ cdef class BaseTree:
         float64_t impurity,
         intp_t n_node_samples,
         float64_t weighted_n_node_samples,
-        unsigned char missing_go_to_left
+        uint8_t missing_go_to_left
     ) except -1 nogil:
         """Add a node to the tree.
 
@@ -1158,7 +1158,7 @@ cdef class BaseTree:
 
         return node_id
 
-    cdef inline int _update_node(
+    cdef inline intp_t _update_node(
         self,
         intp_t parent,
         bint is_left,
@@ -1167,7 +1167,7 @@ cdef class BaseTree:
         float64_t impurity,
         intp_t n_node_samples,
         float64_t weighted_n_node_samples,
-        unsigned char missing_go_to_left
+        uint8_t missing_go_to_left
     ) except -1 nogil:
         """Update a node on the tree.
 
@@ -2085,7 +2085,7 @@ cdef class _CCPPruneController:
         """Save metrics when pruning"""
         pass
 
-    cdef void after_pruning(self, unsigned char[:] in_subtree) noexcept nogil:
+    cdef void after_pruning(self, uint8_t[:] in_subtree) noexcept nogil:
         """Called after pruning"""
         pass
 
@@ -2104,7 +2104,7 @@ cdef class _AlphaPruner(_CCPPruneController):
         # less than or equal to self.ccp_alpha
         return self.ccp_alpha < effective_alpha
 
-    cdef void after_pruning(self, unsigned char[:] in_subtree) noexcept nogil:
+    cdef void after_pruning(self, uint8_t[:] in_subtree) noexcept nogil:
         """Updates the number of leaves in subtree"""
         for i in range(in_subtree.shape[0]):
             if in_subtree[i]:
@@ -2134,7 +2134,7 @@ cdef struct CostComplexityPruningRecord:
     intp_t node_idx
     intp_t parent
 
-cdef _cost_complexity_prune(unsigned char[:] leaves_in_subtree,  # OUT
+cdef _cost_complexity_prune(uint8_t[:] leaves_in_subtree,  # OUT
                             Tree orig_tree,
                             _CCPPruneController controller):
     """Perform cost complexity pruning.
@@ -2147,7 +2147,7 @@ cdef _cost_complexity_prune(unsigned char[:] leaves_in_subtree,  # OUT
 
     Parameters
     ----------
-    leaves_in_subtree : unsigned char[:]
+    leaves_in_subtree : uint8_t[:]
         Output for leaves of subtree
     orig_tree : Tree
         Original tree
@@ -2181,10 +2181,9 @@ cdef _cost_complexity_prune(unsigned char[:] leaves_in_subtree,  # OUT
         intp_t parent_idx
 
         # candidate nodes that can be pruned
-        unsigned char[:] candidate_nodes = np.zeros(shape=n_nodes,
-                                                    dtype=np.uint8)
+        uint8_t[:] candidate_nodes = np.zeros(shape=n_nodes, dtype=np.uint8)
         # nodes in subtree
-        unsigned char[:] in_subtree = np.ones(shape=n_nodes, dtype=np.uint8)
+        uint8_t[:] in_subtree = np.ones(shape=n_nodes, dtype=np.uint8)
         intp_t pruned_branch_node_idx
         float64_t subtree_alpha
         float64_t effective_alpha
@@ -2318,7 +2317,7 @@ def _build_pruned_tree_ccp(
 
     cdef:
         intp_t n_nodes = orig_tree.node_count
-        unsigned char[:] leaves_in_subtree = np.zeros(
+        uint8_t[:] leaves_in_subtree = np.zeros(
             shape=n_nodes, dtype=np.uint8)
 
     pruning_controller = _AlphaPruner(ccp_alpha=ccp_alpha)
@@ -2350,7 +2349,7 @@ def ccp_pruning_path(Tree orig_tree):
             corresponding alpha value in ``ccp_alphas``.
     """
     cdef:
-        unsigned char[:] leaves_in_subtree = np.zeros(
+        uint8_t[:] leaves_in_subtree = np.zeros(
             shape=orig_tree.node_count, dtype=np.uint8)
 
     path_finder = _PathFinder(orig_tree.node_count)
@@ -2383,7 +2382,7 @@ cdef struct BuildPrunedRecord:
 cdef _build_pruned_tree(
     Tree tree,  # OUT
     Tree orig_tree,
-    const unsigned char[:] leaves_in_subtree,
+    const uint8_t[:] leaves_in_subtree,
     intp_t capacity
 ):
     """Build a pruned tree.
@@ -2397,7 +2396,7 @@ cdef _build_pruned_tree(
         Location to place the pruned tree
     orig_tree : Tree
         Original tree
-    leaves_in_subtree : unsigned char memoryview, shape=(node_count, )
+    leaves_in_subtree : uint8_t memoryview, shape=(node_count, )
         Boolean mask for leaves to include in subtree
     capacity : intp_t
         Number of nodes to initially allocate in pruned tree

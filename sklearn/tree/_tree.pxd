@@ -9,7 +9,7 @@ cimport numpy as cnp
 from libcpp.unordered_map cimport unordered_map
 from libcpp.vector cimport vector
 
-from ..utils._typedefs cimport float32_t, float64_t, intp_t, int32_t, uint32_t
+from ..utils._typedefs cimport float32_t, float64_t, intp_t, int32_t, uint8_t, uint32_t
 
 from ._splitter cimport SplitRecord, Splitter
 
@@ -24,7 +24,7 @@ cdef struct Node:
     float64_t impurity                   # Impurity of the node (i.e., the value of the criterion)
     intp_t n_node_samples                # Number of samples at the node
     float64_t weighted_n_node_samples    # Weighted number of samples at the node
-    unsigned char missing_go_to_left     # Whether features have missing values
+    uint8_t missing_go_to_left     # Whether features have missing values
 
 cdef struct ParentInfo:
     # Structure to store information about the parent of a node
@@ -47,7 +47,7 @@ cdef class BaseTree:
     cdef intp_t value_stride             # = n_outputs * max_n_classes
 
     # Methods
-    cdef int _add_node(
+    cdef intp_t _add_node(
         self,
         intp_t parent,
         bint is_left,
@@ -56,12 +56,12 @@ cdef class BaseTree:
         float64_t impurity,
         intp_t n_node_samples,
         float64_t weighted_n_node_samples,
-        unsigned char missing_go_to_left
+        uint8_t missing_go_to_left
     ) except -1 nogil
-    cdef int _resize(self, intp_t capacity) except -1 nogil
-    cdef int _resize_c(self, intp_t capacity=*) except -1 nogil
+    cdef intp_t _resize(self, intp_t capacity) except -1 nogil
+    cdef intp_t _resize_c(self, intp_t capacity=*) except -1 nogil
 
-    cdef int _update_node(
+    cdef intp_t _update_node(
         self,
         intp_t parent,
         bint is_left,
@@ -70,7 +70,7 @@ cdef class BaseTree:
         float64_t impurity,
         intp_t n_node_samples,
         float64_t weighted_n_node_samples,
-        unsigned char missing_go_to_left
+        uint8_t missing_go_to_left
     ) except -1 nogil
 
     # Python API methods: These are methods exposed to Python
@@ -165,7 +165,7 @@ cdef class TreeBuilder:
     cdef float64_t min_impurity_decrease    # Impurity threshold for early stopping
     cdef cnp.ndarray initial_roots          # Leaf nodes for streaming updates
 
-    cdef unsigned char store_leaf_values    # Whether to store leaf values
+    cdef uint8_t store_leaf_values    # Whether to store leaf values
 
     cpdef initialize_node_queue(
       self,
@@ -173,7 +173,7 @@ cdef class TreeBuilder:
       object X,
       const float64_t[:, ::1] y,
       const float64_t[:] sample_weight=*,
-      const unsigned char[::1] missing_values_in_feature_mask=*,
+      const uint8_t[::1] missing_values_in_feature_mask=*,
     )
 
     cpdef build(
@@ -182,7 +182,7 @@ cdef class TreeBuilder:
         object X,
         const float64_t[:, ::1] y,
         const float64_t[:] sample_weight=*,
-        const unsigned char[::1] missing_values_in_feature_mask=*,
+        const uint8_t[::1] missing_values_in_feature_mask=*,
     )
 
     cdef _check_input(
@@ -196,6 +196,6 @@ cdef class TreeBuilder:
 cdef _build_pruned_tree(
     Tree tree,  # OUT
     Tree orig_tree,
-    const unsigned char[:] leaves_in_subtree,
+    const uint8_t[:] leaves_in_subtree,
     intp_t capacity
 )
