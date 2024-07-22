@@ -155,6 +155,10 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
         self.ccp_alpha = ccp_alpha
         self.store_leaf_values = store_leaf_values
         self.monotonic_cst = monotonic_cst
+        self.presplit_conditions = None
+        self.postsplit_conditions = None
+        self.splitter_listeners = None
+        self.tree_build_listeners = None
 
     def get_depth(self):
         """Return the depth of the decision tree.
@@ -523,6 +527,9 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
                 min_weight_leaf,
                 random_state,
                 monotonic_cst,
+                presplit_conditions=self.presplit_conditions,
+                postsplit_conditions=self.postsplit_conditions,
+                listeners=self.splitter_listeners
             )
 
         if is_classifier(self):
@@ -545,7 +552,7 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
                 max_depth,
                 self.min_impurity_decrease,
                 self.store_leaf_values,
-                listeners = self.listeners
+                listeners = self.tree_build_listeners
             )
         else:
             builder = BestFirstTreeBuilder(
@@ -557,7 +564,7 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
                 max_leaf_nodes,
                 self.min_impurity_decrease,
                 self.store_leaf_values,
-                listeners = self.listeners
+                listeners = self.tree_build_listeners
             )
         builder.build(self.tree_, X, y, sample_weight, missing_values_in_feature_mask)
 
