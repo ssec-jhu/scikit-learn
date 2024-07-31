@@ -21,8 +21,11 @@ cdef struct EventHandlerClosure:
     EventHandlerEnv e
 
 cdef class EventHandler:
-    cdef int[:] event_types
+    cdef public int[:] event_types
     cdef EventHandlerClosure c
+
+cdef class NullHandler(EventHandler):
+    pass
 
 cdef class EventBroker:
     cdef vector[vector[EventHandlerClosure]] listeners # listeners acts as a map from EventType to corresponding event handlers

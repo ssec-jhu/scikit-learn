@@ -9,55 +9,71 @@ from scipy.sparse import issparse
 cdef class Honesty:
     def __cinit__(
         self,
-        const float32_t[:, :] X,
-        intp_t[::1] samples,
+        object X,
+        object samples,
         intp_t min_samples_leaf,
         const unsigned char[::1] missing_values_in_feature_mask = None,
         Partitioner honest_partitioner = None,
-        list splitter_event_handlers = None,
-        list split_conditions = None,
-        list tree_event_handlers = None
+        splitter_event_handlers : [EventHandler] = None,
+        presplit_conditions : [SplitCondition] = None,
+        postsplit_conditions : [SplitCondition] = None,
+        tree_event_handlers : [EventHandler] = None
     ):
         if splitter_event_handlers is None:
             splitter_event_handlers = []
-        if split_conditions is None:
-            split_conditions = []
+        if presplit_conditions is None:
+            presplit_conditions = []
+        if postsplit_conditions is None:
+            postsplit_conditions = []
         if tree_event_handlers is None:
             tree_event_handlers = []
 
+        self.views = Views()
         self.views.X = X
         self.views.samples = samples
-        self.views.feature_values = np.empty(len(self.honest_indices_), dtype=np.float32)
+        self.views.feature_values = np.empty(len(samples), dtype=np.float32)
         self.views.partitioner = (
             honest_partitioner if honest_partitioner is not None
             else Honesty.create_partitioner(
-                self.views.X,
-                self.views.samples,
+                X,
+                samples,
                 self.views.feature_values,
                 missing_values_in_feature_mask
             )
         )
         self.env.data_views = <void*>self.views
 
-        self.splitter_event_handlers = [NodeSortFeatureHandler(self)] + splitter_event_handlers
-        self.split_conditions = [HonestMinSamplesLeafCondition(self, min_samples_leaf)] + split_conditions
-        self.tree_event_handlers = [SetActiveParentHandler(self), AddNodeHandler(self)] + tree_event_handlers
+        self.splitter_event_handlers = [NodeSortFeatureHandler(self)] + (
+            splitter_event_handlers if splitter_event_handlers is not None else []
+        )
+        self.presplit_conditions = [TrivialCondition()] + (
+            presplit_conditions if presplit_conditions is not None else []
+        )
+        #self.presplit_conditions = [HonestMinSamplesLeafCondition(self, min_samples_leaf)] + (
+        #    presplit_conditions if presplit_conditions is not None else []
+        #)
+        self.postsplit_conditions = [] + (
+            postsplit_conditions if postsplit_conditions is not None else []
+        )
+        self.tree_event_handlers = [SetActiveParentHandler(self), AddNodeHandler(self)] + (
+            tree_event_handlers if tree_event_handlers is not None else []
+        )
 
-    @staticmethod
-    def inject_splitter(
-        Splitter splitter,
-        SplitCondition[:] presplit_conditions = None,
-        SplitCondition[:] postsplit_conditions = None,
-        EventHandler[:] listeners = None
-    ):
-        if presplit_conditions is not None:
-            splitter.add_presplit_conditions(presplit_conditions)
-
-        if postsplit_conditions is not None:
-            splitter.add_postsplit_conditions(postsplit_conditions)
-
-        if listeners is not None:
-            splitter.add_listeners(listeners, [NodeSplitEvent.SORT_FEATURE])
+    #@staticmethod
+    #def inject_splitter(
+    #    Splitter splitter,
+    #    presplit_conditions : [SplitCondition] = None,
+    #    postsplit_conditions : [SplitCondition] = None,
+    #    listeners : [EventHandler] = None
+    #):
+    #    if presplit_conditions is not None:
+    #        splitter.add_presplit_conditions(presplit_conditions)
+    #
+    #    if postsplit_conditions is not None:
+    #        splitter.add_postsplit_conditions(postsplit_conditions)
+    #
+    #    if listeners is not None:
+    #        splitter.add_listeners(listeners, [NodeSplitEvent.SORT_FEATURE])
 
     
     @staticmethod
@@ -109,8 +125,7 @@ cdef bint _handle_set_active_parent(
 
 cdef class SetActiveParentHandler(EventHandler):
     def __cinit__(self, Honesty h):
-        self._event_types = [TreeBuildEvent.SET_ACTIVE_PARENT]
-        self.event_types = self._event_types
+        self.event_types = np.array([TreeBuildEvent.SET_ACTIVE_PARENT], dtype=np.int32)
 
         self.c.f = _handle_set_active_parent
         self.c.e = &h.env
@@ -137,8 +152,7 @@ cdef bint _handle_sort_feature(
 
 cdef class NodeSortFeatureHandler(EventHandler):
     def __cinit__(self, Honesty h):
-        self._event_types = [NodeSplitEvent.SORT_FEATURE]
-        self.event_types = self._event_types
+        self.event_types = np.array([NodeSplitEvent.SORT_FEATURE], dtype=np.int32)
 
         self.c.f = _handle_sort_feature
         self.c.e = &h.env
@@ -208,11 +222,32 @@ cdef bint _handle_add_node(
 
 cdef class AddNodeHandler(EventHandler):
     def __cinit__(self, Honesty h):
-        self._event_types = [TreeBuildEvent.ADD_NODE]
-        self.event_types = self._event_types
+        self.event_types = np.array([TreeBuildEvent.ADD_NODE], dtype=np.int32)
 
         self.c.f = _handle_add_node
         self.c.e = &h.env
+
+
+cdef bint _trivial_condition(
+    Splitter splitter,
+    intp_t split_feature,
+    intp_t split_pos,
+    float64_t split_value,
+    intp_t n_missing,
+    bint missing_go_to_left,
+    float64_t lower_bound,
+    float64_t upper_bound,
+    SplitConditionEnv split_condition_env
+) noexcept nogil:
+    with gil:
+        print("TrivialCondition called")
+    
+    return True
+
+cdef class TrivialCondition(SplitCondition):
+    def __cinit__(self):
+        self.c.f = _trivial_condition
+        self.c.e = NULL
 
 
 cdef bint _honest_min_sample_leaf_condition(

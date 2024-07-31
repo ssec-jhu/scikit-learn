@@ -5,11 +5,11 @@
 
 
 cdef class EventBroker:
-    def __cinit__(self, EventHandler[:] listeners, int[:] event_types):
+    def __cinit__(self, listeners: [EventHandler], event_types: [EventType]):
         """
         Parameters:
-        - listeners (EventHandler[:])
-        - event_types (int[:]): an array of EventTypes that may be fired by this EventBroker
+        - listeners ([EventHandler])
+        - event_types ([EventType]): a list of EventTypes that may be fired by this EventBroker
 
         Notes:
         - Don't mix event types in a single EventBroker instance,
@@ -18,13 +18,13 @@ cdef class EventBroker:
         """
         self.listeners.resize(max(event_types) + 1)
 
-        if(listeners is not None):
-            self.add_listeners(listeners, event_types)
-        else:
-            for e in event_types:
+        if(listeners is None):
+            for e in range(max(event_types) + 1):
                 self.listeners[e].resize(0)
+        else:
+            self.add_listeners(listeners, event_types)
 
-    def add_listeners(self, EventHandler[:] listeners, int[:] event_types):
+    def add_listeners(self, listeners: [EventHandler], event_types: [EventType]):
         cdef int e, i, j, offset, mx, ct
         cdef list l
 
@@ -39,18 +39,19 @@ cdef class EventBroker:
         if(listeners is not None):
             for e in event_types:
                 # find indices for all listeners to event type e
-                l = [j for j, _l in enumerate(listeners) if e in _l.events]
+                l = [j for j, _l in enumerate(listeners) if e in (<EventHandler>_l).event_types]
                 offset = self.listeners[e].size()
                 ct = len(l)
                 self.listeners[e].resize(offset + ct)
                 for i in range(ct):
                     j = l[i]
-                    self.listeners[e][offset + i] = listeners[j].c
+                    self.listeners[e][offset + i] = (<EventHandler>listeners[j]).c
 
     cdef bint fire_event(self, EventType event_type, EventData event_data) noexcept nogil:
         cdef bint result = True
 
-        for l in self.listeners[event_type]:
-            result = result and l.f(event_type, l.e, event_data)
+        if event_type < self.listeners.size():
+            for l in self.listeners[event_type]:
+                result = result and l.f(event_type, l.e, event_data)
         
         return result

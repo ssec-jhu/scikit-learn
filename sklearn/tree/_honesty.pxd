@@ -26,6 +26,7 @@ cdef struct Interval:
 cdef class Views:
     cdef:
         const float32_t[:, :] X
+        const float32_t[:, ::1] y
         intp_t[::1] samples
         float32_t[::1] feature_values   # temp. array holding feature values
         Partitioner partitioner
@@ -39,9 +40,10 @@ cdef struct HonestEnv:
 
 cdef class Honesty:
     cdef:
-        object splitter_event_handlers # python list of EventHandler
-        object split_conditions        # python list of SplitCondition
-        object tree_event_handlers     # python list of EventHandler
+        public list splitter_event_handlers # python list of EventHandler
+        public list presplit_conditions     # python list of SplitCondition
+        public list postsplit_conditions    # python list of SplitCondition
+        public list tree_event_handlers     # python list of EventHandler
 
         Views views
         HonestEnv env
@@ -58,6 +60,9 @@ cdef class AddNodeHandler(EventHandler):
     pass
 
 cdef class SetActiveParentHandler(EventHandler):
+    pass
+
+cdef class TrivialCondition(SplitCondition):
     pass
 
 cdef class HonestMinSamplesLeafCondition(SplitCondition):

@@ -20,7 +20,7 @@ from ._tree cimport ParentInfo
 
 from ..utils._typedefs cimport float32_t, float64_t, intp_t, int8_t, int32_t, uint32_t
 
-from ._events cimport EventBroker, EventHandler
+from ._events cimport EventBroker, EventHandler, NullHandler
 
 
 cdef enum NodeSplitEvent:
@@ -205,7 +205,7 @@ cdef class Splitter(BaseSplitter):
     cdef void _add_conditions(
         self,
         vector[SplitConditionClosure] v,
-        SplitCondition[:] split_conditions
+        split_conditions
     )
 
 

@@ -1,7 +1,10 @@
 # Adopted from: https://github.com/neurodata/honest-forests
 
 import copy
+import numbers
 import numpy as np
+from math import ceil
+from numpy import float32 as DTYPE
 from scipy.sparse import issparse
 
 from ..base import ClassifierMixin, MetaEstimatorMixin, _fit_context, clone, is_classifier
@@ -20,6 +23,25 @@ from ._honesty import Honesty
 from ._tree import DOUBLE
 
 
+class BuildTreeArgs:
+    def __init__(
+        self,
+        X,
+        y,
+        sample_weight,
+        missing_values_in_feature_mask,
+        min_samples_leaf,
+        min_weight_leaf,
+        max_leaf_nodes,
+        min_samples_split,
+        max_depth,
+        random_state
+    ):
+        for name, value in locals().items():
+            if name != 'self':
+                setattr(self, name, value)
+
+
 class HonestTree(BaseDecisionTree):
     _parameter_constraints: dict = {
         **BaseDecisionTree._parameter_constraints,
@@ -31,14 +53,192 @@ class HonestTree(BaseDecisionTree):
     def __init__(
         self,
         target_tree,
+        random_state=None,
         honest_fraction=0.5,
         honest_prior="empirical",
         stratify=False
     ):
         self.target_tree = target_tree
+        self.random_state = random_state
         self.honest_fraction = honest_fraction
         self.honest_prior = honest_prior
         self.stratify = stratify
+
+    # def _data_prep(
+    #         self,
+    #         target_tree,
+    #         X,
+    #         y,
+    #         sample_weight=None,
+    #         check_input=True,
+    #         missing_values_in_feature_mask=None,
+    #         classes=None
+    # ):
+    #     random_state = check_random_state(target_tree.random_state)
+
+    #     if check_input:
+    #         # Need to validate separately here.
+    #         # We can't pass multi_output=True because that would allow y to be
+    #         # csr.
+
+    #         # _compute_missing_values_in_feature_mask will check for finite values and
+    #         # compute the missing mask if the tree supports missing values
+    #         check_X_params = dict(
+    #             dtype=DTYPE, accept_sparse="csc", force_all_finite=False
+    #         )
+    #         check_y_params = dict(ensure_2d=False, dtype=None)
+    #         if y is not None or target_tree._get_tags()["requires_y"]:
+    #             X, y = target_tree._validate_data(
+    #                 X, y, validate_separately=(check_X_params, check_y_params)
+    #             )
+    #         else:
+    #             X = target_tree._validate_data(X, **check_X_params)
+
+    #         missing_values_in_feature_mask = (
+    #             target_tree._compute_missing_values_in_feature_mask(X)
+    #         )
+    #         if issparse(X):
+    #             X.sort_indices()
+
+    #             if X.indices.dtype != np.intc or X.indptr.dtype != np.intc:
+    #                 raise ValueError(
+    #                     "No support for np.int64 index based sparse matrices"
+    #                 )
+
+    #         if y is not None and target_tree.criterion == "poisson":
+    #             if np.any(y < 0):
+    #                 raise ValueError(
+    #                     "Some value(s) of y are negative which is"
+    #                     " not allowed for Poisson regression."
+    #                 )
+    #             if np.sum(y) <= 0:
+    #                 raise ValueError(
+    #                     "Sum of y is not positive which is "
+    #                     "necessary for Poisson regression."
+    #                 )
+
+    #     # Determine output settings
+    #     n_samples, self.n_features_in_ = X.shape
+
+    #     # Do preprocessing if 'y' is passed
+    #     is_classification = False
+    #     if y is not None:
+    #         is_classification = is_classifier(target_tree)
+    #         y = np.atleast_1d(y)
+    #         expanded_class_weight = None
+
+    #         if y.ndim == 1:
+    #             # reshape is necessary to preserve the data contiguity against vs
+    #             # [:, np.newaxis] that does not.
+    #             y = np.reshape(y, (-1, 1))
+
+    #         self.n_outputs_ = y.shape[1]
+
+    #         if is_classification:
+    #             check_classification_targets(y)
+    #             y = np.copy(y)
+
+    #             self.classes_ = []
+    #             self.n_classes_ = []
+
+    #             if target_tree.class_weight is not None:
+    #                 y_original = np.copy(y)
+
+    #             y_encoded = np.zeros(y.shape, dtype=int)
+    #             if classes is not None:
+    #                 classes = np.atleast_1d(classes)
+    #                 if classes.ndim == 1:
+    #                     classes = np.array([classes])
+
+    #                 for k in classes:
+    #                     self.classes_.append(np.array(k))
+    #                     self.n_classes_.append(np.array(k).shape[0])
+
+    #                 for i in range(n_samples):
+    #                     for j in range(self.n_outputs_):
+    #                         y_encoded[i, j] = np.where(
+    #                             self.classes_[j] == y[i, j]
+    #                         )[0][0]
+    #             else:
+    #                 for k in range(self.n_outputs_):
+    #                     classes_k, y_encoded[:, k] = np.unique(
+    #                         y[:, k], return_inverse=True
+    #                     )
+    #                     self.classes_.append(classes_k)
+    #                     self.n_classes_.append(classes_k.shape[0])
+
+    #             y = y_encoded
+
+    #             if target_tree.class_weight is not None:
+    #                 expanded_class_weight = compute_sample_weight(
+    #                     target_tree.class_weight, y_original
+    #                 )
+
+    #             self.n_classes_ = np.array(self.n_classes_, dtype=np.intp)
+    #             self._n_classes_ = self.n_classes_
+    #         if getattr(y, "dtype", None) != DOUBLE or not y.flags.contiguous:
+    #             y = np.ascontiguousarray(y, dtype=DOUBLE)
+
+    #         if len(y) != n_samples:
+    #             raise ValueError(
+    #                 "Number of labels=%d does not match number of samples=%d"
+    #                 % (len(y), n_samples)
+    #             )
+
+    #     # set decision-tree model parameters
+    #     max_depth = np.iinfo(np.int32).max if target_tree.max_depth is None else target_tree.max_depth
+
+    #     if isinstance(target_tree.min_samples_leaf, numbers.Integral):
+    #         min_samples_leaf = target_tree.min_samples_leaf
+    #     else:  # float
+    #         min_samples_leaf = int(ceil(target_tree.min_samples_leaf * n_samples))
+
+    #     if isinstance(target_tree.min_samples_split, str):
+    #         if target_tree.min_samples_split == "sqrt":
+    #             min_samples_split = max(1, int(np.sqrt(target_tree.n_features_in_)))
+    #         elif target_tree.min_samples_split == "log2":
+    #             min_samples_split = max(1, int(np.log2(target_tree.n_features_in_)))
+    #     elif isinstance(target_tree.min_samples_split, numbers.Integral):
+    #         min_samples_split = target_tree.min_samples_split
+    #     else:  # float
+    #         min_samples_split = int(ceil(target_tree.min_samples_split * n_samples))
+    #         min_samples_split = max(2, min_samples_split)
+    #     min_samples_split = max(min_samples_split, 2 * min_samples_leaf)
+    #     self.min_samples_split_ = min_samples_split
+    #     self.min_samples_leaf_ = min_samples_leaf
+
+    #     if isinstance(target_tree.max_features, str):
+    #         if target_tree.max_features == "sqrt":
+    #             max_features = max(1, int(np.sqrt(target_tree.n_features_in_)))
+    #         elif target_tree.max_features == "log2":
+    #             max_features = max(1, int(np.log2(target_tree.n_features_in_)))
+    #     elif target_tree.max_features is None:
+    #         max_features = target_tree.n_features_in_
+    #     elif isinstance(target_tree.max_features, numbers.Integral):
+    #         max_features = target_tree.max_features
+    #     else:  # float
+    #         if target_tree.max_features > 0.0:
+    #             max_features = max(1, int(target_tree.max_features * target_tree.n_features_in_))
+    #         else:
+    #             max_features = 0
+
+    #     self.max_features_ = max_features
+
+    #     max_leaf_nodes = -1 if target_tree.max_leaf_nodes is None else target_tree.max_leaf_nodes
+
+    #     return BuildTreeArgs(
+    #         X=X,
+    #         y=y,
+    #         sample_weight=sample_weight,
+    #         missing_values_in_feature_mask=missing_values_in_feature_mask,
+    #         min_samples_leaf=min_samples_leaf,
+    #         min_weight_leaf=self.min_weight_fraction_leaf,
+    #         max_leaf_nodes=max_leaf_nodes,
+    #         min_samples_split=min_samples_split,
+    #         max_depth=max_depth,
+    #         random_state=random_state
+    #     )
+
 
     @_fit_context(prefer_skip_nested_validation=True)
     def fit(
@@ -80,25 +280,33 @@ class HonestTree(BaseDecisionTree):
         self : HonestTree
             Fitted tree estimator.
         """
-        random_state = check_random_state(self.target_tree.random_state)
 
-        if check_input:
-            X, y = check_X_y(X, y, multi_output=True)
+        bta = self.target_tree._prep_data(
+            X=X,
+            y=y,
+            sample_weight=sample_weight,
+            check_input=check_input,
+            missing_values_in_feature_mask=missing_values_in_feature_mask,
+            classes=classes
+        )
 
         # Determine output settings
-        self.init_output_shape(X, y, classes)
+        self._init_output_shape(bta.X, bta.y, bta.classes)
 
         # obtain the structure sample weights
-        sample_weights_structure = self._partition_honest_indices(y, sample_weight)
+        sample_weights_structure = self._partition_honest_indices(
+            bta.y,
+            bta.sample_weight
+        )
 
         # compute the honest sample indices
-        not_honest_mask = np.ones(len(y), dtype=bool)
+        not_honest_mask = np.ones(len(bta.y), dtype=bool)
         not_honest_mask[self.honest_indices_] = False
 
-        if sample_weight is None:
-            sample_weight_leaves = np.ones((len(y),), dtype=np.float64)
+        if bta.sample_weight is None:
+            sample_weight_leaves = np.ones((len(bta.y),), dtype=np.float64)
         else:
-            sample_weight_leaves = np.array(sample_weight)
+            sample_weight_leaves = np.array(bta.sample_weight)
         sample_weight_leaves[not_honest_mask] = 0
 
         # determine the honest indices using the sample weight
@@ -108,34 +316,34 @@ class HonestTree(BaseDecisionTree):
 
         # create honesty, set up listeners in target tree
         self.honesty = Honesty(
-            X,
+            bta.X,
             self.honest_indices_,
-            self.target_tree.min_samples_leaf
+            bta.min_samples_leaf
         )
 
         self.target_tree.presplit_conditions = self.honesty.presplit_conditions
         self.target_tree.postsplit_conditions = self.honesty.postsplit_conditions
         self.target_tree.splitter_listeners = self.honesty.splitter_event_handlers
-        self.target_tree.tree_build_listeners = self.honesty.tree_build_event_handlers
+        # self.target_tree.tree_build_listeners = self.honesty.tree_build_event_handlers
 
         # Learn structure on subsample
         # XXX: this allows us to use BaseDecisionTree without partial_fit API
         try:
             self.target_tree.fit(
-                X,
-                y,
+                bta.X,
+                bta.y,
                 sample_weight=sample_weights_structure,
                 check_input=check_input,
-                missing_values_in_feature_mask=missing_values_in_feature_mask,
-                classes=classes,
+                #missing_values_in_feature_mask=missing_values_in_feature_mask,
+                classes=bta.classes,
             )
         except Exception:
             self.target_tree.fit(
-                X,
-                y,
+                bta.X,
+                bta.y,
                 sample_weight=sample_weights_structure,
                 check_input=check_input,
-                missing_values_in_feature_mask=missing_values_in_feature_mask,
+                #missing_values_in_feature_mask=missing_values_in_feature_mask,
             )
         # self._inherit_estimator_attributes()
 
@@ -254,7 +462,7 @@ class HonestTree(BaseDecisionTree):
 
 
     def _partition_honest_indices(self, y, sample_weight):
-        rng = np.random.default_rng(self.random_state)
+        rng = np.random.default_rng(self.target_tree.random_state)
 
         # Account for bootstrapping too
         if sample_weight is None:
@@ -285,7 +493,7 @@ class HonestTree(BaseDecisionTree):
         return _sample_weight
 
 
-# class HonestTreeClassifier(MetaEstimatorMixin, ClassifierMixin, HonestTree):
+# class HonestTreeClassifier(MetaEstimatorMixin, ClassifierMixin):
 #     """
 #     A decision tree classifier with honest predictions.
 

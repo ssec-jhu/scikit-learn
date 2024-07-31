@@ -170,7 +170,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
         float64_t min_impurity_decrease,
         unsigned char store_leaf_values=False,
         cnp.ndarray initial_roots=None,
-        EventHandler[:] listeners=None
+        listeners : [EventHandler] =None
     ):
         self.splitter = splitter
         self.min_samples_split = min_samples_split
@@ -181,7 +181,14 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
         self.store_leaf_values = store_leaf_values
         self.initial_roots = initial_roots
 
-        self.event_broker = EventBroker(listeners, [TreeBuildEvent.ADD_NODE, TreeBuildEvent.UPDATE_NODE])
+        self.event_broker = EventBroker(
+            listeners,
+            [
+                TreeBuildEvent.ADD_NODE,
+                TreeBuildEvent.UPDATE_NODE,
+                TreeBuildEvent.SET_ACTIVE_PARENT
+            ]
+        )
 
 
     def __reduce__(self):
@@ -581,7 +588,7 @@ cdef class BestFirstTreeBuilder(TreeBuilder):
         float64_t min_impurity_decrease,
         unsigned char store_leaf_values=False,
         cnp.ndarray initial_roots=None,
-        EventHandler[:] listeners=None
+        listeners : [EventHandler] =None
     ):
         self.splitter = splitter
         self.min_samples_split = min_samples_split

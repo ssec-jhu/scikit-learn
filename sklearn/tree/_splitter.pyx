@@ -33,7 +33,6 @@ import numpy as np
 cdef float64_t INFINITY = np.inf
 
 
-
 cdef bint min_sample_leaf_condition(
     Splitter splitter,
     intp_t split_feature,
@@ -234,9 +233,9 @@ cdef class Splitter(BaseSplitter):
         float64_t min_weight_leaf,
         object random_state,
         const int8_t[:] monotonic_cst,
-        SplitCondition[:] presplit_conditions = None,
-        SplitCondition[:] postsplit_conditions = None,
-        EventHandler[:] listeners = None,
+        presplit_conditions : [SplitCondition] = None,
+        postsplit_conditions : [SplitCondition] = None,
+        listeners : [EventHandler] = None,
         *argv
     ):
         """
@@ -327,19 +326,19 @@ cdef class Splitter(BaseSplitter):
         self.split_record_factory.f = _base_split_record_factory
         self.split_record_factory.e = NULL
 
-    def add_listeners(self, EventHandler[:] listeners, int[:] event_types):
+    def add_listeners(self, listeners: [EventHandler], event_types: [EventType]):
         self.broker.add_listeners(listeners, event_types)
     
-    def add_presplit_conditions(self, SplitCondition[:] presplit_conditions):
+    def add_presplit_conditions(self, presplit_conditions):
         self._add_conditions(self.presplit_conditions, presplit_conditions)
     
-    def add_postsplit_conditions(self, SplitCondition[:] postsplit_conditions):
+    def add_postsplit_conditions(self, postsplit_conditions):
         self._add_conditions(self.postsplit_conditions, postsplit_conditions)
 
     cdef void _add_conditions(
         self,
         vector[SplitConditionClosure] v,
-        SplitCondition[:] split_conditions
+        split_conditions: [SplitCondition]
     ):
         cdef int offset, ct, i
 
@@ -348,7 +347,7 @@ cdef class Splitter(BaseSplitter):
             ct = len(split_conditions)
             v.resize(offset + ct)
             for i in range(ct):
-                v[i + offset] = split_conditions[i].c
+                v[i + offset] = (<SplitCondition>split_conditions[i]).c
 
     
     def __reduce__(self):
@@ -1150,6 +1149,7 @@ cdef class RandomSparseSplitter(Splitter):
         self.partitioner = SparsePartitioner(
             X, self.samples, self.n_samples, self.feature_values, missing_values_in_feature_mask
         )
+
     cdef int node_split(
             self,
             ParentInfo* parent_record,

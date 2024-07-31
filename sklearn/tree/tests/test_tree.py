@@ -35,6 +35,7 @@ from sklearn.tree._classes import (
     DENSE_SPLITTERS,
     SPARSE_SPLITTERS,
 )
+from sklearn.tree._honest_tree import HonestTree
 from sklearn.tree._tree import (
     NODE_DTYPE,
     TREE_LEAF,
@@ -319,6 +320,23 @@ def test_iris():
             name, criterion, score
         )
 
+def test_honest_iris():
+    for (name, Tree), criterion in product(CLF_TREES.items(), CLF_CRITERIONS):
+        clf = Tree(criterion=criterion, random_state=0)
+        hf = HonestTree(clf)
+        hf.fit(iris.data, iris.target)
+        score = accuracy_score(clf.predict(iris.data), iris.target)
+        assert score > 0.9, "Failed with {0}, criterion = {1} and score = {2}".format(
+            name, criterion, score
+        )
+
+        clf = Tree(criterion=criterion, max_features=2, random_state=0)
+        hf = HonestTree(clf)
+        hf.fit(iris.data, iris.target)
+        score = accuracy_score(clf.predict(iris.data), iris.target)
+        assert score > 0.5, "Failed with {0}, criterion = {1} and score = {2}".format(
+            name, criterion, score
+        )
 
 @pytest.mark.parametrize("name, Tree", REG_TREES.items())
 @pytest.mark.parametrize("criterion", REG_CRITERIONS)

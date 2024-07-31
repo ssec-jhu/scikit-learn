@@ -88,6 +88,34 @@ SPARSE_SPLITTERS = {
 # =============================================================================
 
 
+class BuildTreeArgs:
+    def __init__(
+            self,
+            X,
+            y,
+            sample_weight,
+            missing_values_in_feature_mask,
+            min_samples_leaf,
+            min_weight_leaf,
+            max_leaf_nodes,
+            min_samples_split,
+            max_depth,
+            random_state,
+            classes
+    ):
+        self.X = X
+        self.y = y
+        self.sample_weight = sample_weight
+        self.missing_values_in_feature_mask = missing_values_in_feature_mask
+        self.min_samples_leaf = min_samples_leaf
+        self.min_weight_leaf = min_weight_leaf
+        self.max_leaf_nodes = max_leaf_nodes
+        self.min_samples_split = min_samples_split
+        self.max_depth = max_depth
+        self.random_state = random_state
+        self.classes = classes
+
+
 class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
     """Base class for decision trees.
 
@@ -232,7 +260,7 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
         missing_values_in_feature_mask = _any_isnan_axis0(X)
         return missing_values_in_feature_mask
 
-    def _fit(
+    def _prep_data(
         self,
         X,
         y,
@@ -409,8 +437,7 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
             min_weight_leaf = self.min_weight_fraction_leaf * np.sum(sample_weight)
         self.min_weight_leaf_ = min_weight_leaf
 
-        # build the actual tree now with the parameters
-        self = self._build_tree(
+        return BuildTreeArgs(
             X=X,
             y=y,
             sample_weight=sample_weight,
@@ -421,9 +448,42 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
             min_samples_split=min_samples_split,
             max_depth=max_depth,
             random_state=random_state,
+            classes=classes
         )
 
-        return self
+
+    def _fit(
+        self,
+        X,
+        y,
+        sample_weight=None,
+        check_input=True,
+        missing_values_in_feature_mask=None,
+        classes=None,
+    ):
+        bta = self._prep_data(
+            X=X,
+            y=y,
+            sample_weight=sample_weight,
+            check_input=check_input,
+            missing_values_in_feature_mask=missing_values_in_feature_mask,
+            classes=classes
+        )
+
+        # build the actual tree now with the parameters
+        return self._build_tree(
+            X=bta.X,
+            y=bta.y,
+            sample_weight=bta.sample_weight,
+            missing_values_in_feature_mask=bta.missing_values_in_feature_mask,
+            min_samples_leaf=bta.min_samples_leaf,
+            min_weight_leaf=bta.min_weight_leaf,
+            max_leaf_nodes=bta.max_leaf_nodes,
+            min_samples_split=bta.min_samples_split,
+            max_depth=bta.max_depth,
+            random_state=bta.random_state,
+        )
+
 
     def _build_tree(
         self,
@@ -518,6 +578,8 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
                 # *positive class*, all signs must be flipped.
                 monotonic_cst *= -1
         self.monotonic_cst_ = monotonic_cst
+
+        print(f"conditions: {[c.__class__ for c in self.presplit_conditions]}")
 
         if not isinstance(self.splitter, BaseSplitter):
             splitter = SPLITTERS[self.splitter](
