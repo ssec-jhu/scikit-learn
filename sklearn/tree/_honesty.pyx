@@ -46,12 +46,12 @@ cdef class Honesty:
         self.splitter_event_handlers = [NodeSortFeatureHandler(self)] + (
             splitter_event_handlers if splitter_event_handlers is not None else []
         )
-        self.presplit_conditions = [TrivialCondition()] + (
-            presplit_conditions if presplit_conditions is not None else []
-        )
-        #self.presplit_conditions = [HonestMinSamplesLeafCondition(self, min_samples_leaf)] + (
+        #self.presplit_conditions = [TrivialCondition()] + (
         #    presplit_conditions if presplit_conditions is not None else []
         #)
+        self.presplit_conditions = [HonestMinSamplesLeafCondition(self, min_samples_leaf)] + (
+            presplit_conditions if presplit_conditions is not None else []
+        )
         self.postsplit_conditions = [] + (
             postsplit_conditions if postsplit_conditions is not None else []
         )

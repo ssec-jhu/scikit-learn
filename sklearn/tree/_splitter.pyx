@@ -330,15 +330,15 @@ cdef class Splitter(BaseSplitter):
         self.broker.add_listeners(listeners, event_types)
     
     def add_presplit_conditions(self, presplit_conditions):
-        self._add_conditions(self.presplit_conditions, presplit_conditions)
+        self._add_conditions(&self.presplit_conditions, presplit_conditions)
     
     def add_postsplit_conditions(self, postsplit_conditions):
-        self._add_conditions(self.postsplit_conditions, postsplit_conditions)
+        self._add_conditions(&self.postsplit_conditions, postsplit_conditions)
 
     cdef void _add_conditions(
         self,
-        vector[SplitConditionClosure] v,
-        split_conditions: [SplitCondition]
+        vector[SplitConditionClosure]* v,
+        split_conditions : [SplitCondition]
     ):
         cdef int offset, ct, i
 
@@ -347,7 +347,7 @@ cdef class Splitter(BaseSplitter):
             ct = len(split_conditions)
             v.resize(offset + ct)
             for i in range(ct):
-                v[i + offset] = (<SplitCondition>split_conditions[i]).c
+                v[0][i + offset] = (<SplitCondition>split_conditions[i]).c
 
     
     def __reduce__(self):
@@ -750,6 +750,19 @@ cdef inline intp_t node_split_best(
                 current_threshold = (
                     feature_values[p_prev] / 2.0 + feature_values[p] / 2.0
                 )
+
+                conditions_hold = True
+                for condition in splitter.presplit_conditions:
+                    if not condition.f(
+                        splitter, current_split.feature, current_split.pos,
+                        current_threshold, n_missing, missing_go_to_left,
+                        lower_bound, upper_bound, condition.e
+                    ):
+                        conditions_hold = False
+                        break
+
+                if not conditions_hold:
+                    continue
 
                 # Reject if min_samples_leaf is not guaranteed
                 if splitter.check_presplit_conditions(&current_split, n_missing, missing_go_to_left) == 1:

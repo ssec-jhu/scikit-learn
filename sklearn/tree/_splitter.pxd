@@ -204,8 +204,8 @@ cdef class Splitter(BaseSplitter):
 
     cdef void _add_conditions(
         self,
-        vector[SplitConditionClosure] v,
-        split_conditions
+        vector[SplitConditionClosure]* v,
+        split_conditions : [SplitCondition]
     )
 
 
