@@ -217,7 +217,7 @@ cdef bint _handle_add_node(
         return True
 
     #with gil:
-    #    print("_handle_add_node checkpoint 2")
+        #print("_handle_add_node checkpoint 2")
 
     cdef HonestEnv* env = <HonestEnv*>handler_env
     cdef const float32_t[:, :] X = (<Views>env.data_views).X
@@ -229,7 +229,7 @@ cdef bint _handle_add_node(
     cdef Interval *parent
 
     #with gil:
-    #    print("_handle_add_node checkpoint 3")
+        #    print("_handle_add_node checkpoint 3")
 
     if data.node_id >= size:
         #with gil:
@@ -306,8 +306,20 @@ cdef bint _handle_add_node(
         interval.split_idx, interval.split_value, interval.feature, (<Views>env.data_views).partitioner.n_missing
         )
 
-    #with gil:
-    #    print("_handle_add_node checkpoint 10")
+    with gil:
+        #print("_handle_add_node checkpoint 10")
+        print("")
+        print(f"parent_node_id = {data.parent_node_id}")
+        print(f"node_id = {data.node_id}")
+        print(f"is_left = {data.is_left}")
+        print(f"feature = {data.feature}")
+        print(f"split_point = {data.split_point}")
+        print("---")
+        print(f"start_idx = {interval.start_idx}")
+        print(f"n = {interval.n}")
+        print(f"feature = {interval.feature}")
+        print(f"split_idx = {interval.split_idx}")
+        print(f"split_value = {interval.split_value}")
 
 
 cdef class AddNodeHandler(EventHandler):
@@ -373,30 +385,31 @@ cdef bint _honest_min_sample_leaf_condition(
         n_left = node.split_idx - node.start_idx
         n_right = end_non_missing - node.split_idx + n_missing
 
-    with gil:
-        print("")
-        print("in _honest_min_sample_leaf_condition")
-        print(f"min_samples_leaf = {min_samples_leaf}")
-        print(f"start_idx = {node.start_idx}")
-        print(f"split_idx = {node.split_idx}")
-        print(f"n = {node.n}")
-        print(f"n_missing = {n_missing}")
-        print(f"end_non_missing = {end_non_missing}")
-        print(f"n_left = {n_left}")
-        print(f"n_right = {n_right}")
-        print(f"split_value = {split_value}")
-        if node.split_idx > 0:
-            print(f"X.feature_value left = {(<Views>env.honest_env.data_views).X[(<Views>env.honest_env.data_views).samples[node.split_idx - 1], node.feature]}")
-        print(f"X.feature_value right = {(<Views>env.honest_env.data_views).X[(<Views>env.honest_env.data_views).samples[node.split_idx], node.feature]}")
+    #with gil:
+    #    print("")
+    #    print("in _honest_min_sample_leaf_condition")
+    #    print(f"min_samples_leaf = {min_samples_leaf}")
+    #    print(f"feature = {node.feature}")
+    #    print(f"start_idx = {node.start_idx}")
+    #    print(f"split_idx = {node.split_idx}")
+    #    print(f"n = {node.n}")
+    #    print(f"n_missing = {n_missing}")
+    #    print(f"end_non_missing = {end_non_missing}")
+    #    print(f"n_left = {n_left}")
+    #    print(f"n_right = {n_right}")
+    #    print(f"split_value = {split_value}")
+    #    if node.split_idx > 0:
+    #        print(f"X.feature_value left = {(<Views>env.honest_env.data_views).X[(<Views>env.honest_env.data_views).samples[node.split_idx - 1], node.feature]}")
+    #    print(f"X.feature_value right = {(<Views>env.honest_env.data_views).X[(<Views>env.honest_env.data_views).samples[node.split_idx], node.feature]}")
 
     # Reject if min_samples_leaf is not guaranteed
     if n_left < min_samples_leaf or n_right < min_samples_leaf:
-        with gil:
-            print("returning False")
+        #with gil:
+        #    print("returning False")
         return False
 
-    with gil:
-        print("returning True")
+    #with gil:
+    #    print("returning True")
     
     return True
 

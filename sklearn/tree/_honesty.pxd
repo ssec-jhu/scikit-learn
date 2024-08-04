@@ -17,7 +17,7 @@ from libcpp.vector cimport vector
 
 
 cdef struct Interval:
-    intp_t start_idx
+    intp_t start_idx      # index into samples
     intp_t n
     intp_t feature
     intp_t split_idx      # start of right child

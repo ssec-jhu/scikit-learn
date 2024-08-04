@@ -751,24 +751,24 @@ cdef inline intp_t node_split_best(
             p = start
 
             while p < end_non_missing:
-                with gil:
-                    print("")
-                    print("_node_split_best checkpoint 1")
+                #with gil:
+                #    print("")
+                #    print("_node_split_best checkpoint 1")
 
                 partitioner.next_p(&p_prev, &p)
 
-                with gil:
-                    print("checkpoint 1.1")
-                    print(f"end_non_missing = {end_non_missing}")
-                    print(f"p = {<int32_t>p}")
+                #with gil:
+                #    print("checkpoint 1.1")
+                #    print(f"end_non_missing = {end_non_missing}")
+                #    print(f"p = {<int32_t>p}")
 
                 if p >= end_non_missing:
-                    with gil:
-                        print("continuing")
+                    #with gil:
+                    #    print("continuing")
                     continue
 
-                with gil:
-                    print("_node_split_best checkpoint 1.2")
+                #with gil:
+                #    print("_node_split_best checkpoint 1.2")
 
                 current_split.pos = p
                 # probably want to assign this to current_split.threshold later,
@@ -778,8 +778,8 @@ cdef inline intp_t node_split_best(
                     feature_values[p_prev] / 2.0 + feature_values[p] / 2.0
                 )
 
-                with gil:
-                    print("_node_split_best checkpoint 2")
+                #with gil:
+                #    print("_node_split_best checkpoint 2")
 
                 conditions_hold = True
                 for condition in splitter.presplit_conditions:
@@ -791,8 +791,8 @@ cdef inline intp_t node_split_best(
                         conditions_hold = False
                         break
 
-                with gil:
-                    print("_node_split_best checkpoint 3")
+                #with gil:
+                #    print("_node_split_best checkpoint 3")
 
                 if not conditions_hold:
                     continue
@@ -801,13 +801,13 @@ cdef inline intp_t node_split_best(
                 if splitter.check_presplit_conditions(&current_split, n_missing, missing_go_to_left) == 1:
                     continue
 
-                with gil:
-                    print("_node_split_best checkpoint 4")
+                #with gil:
+                #    print("_node_split_best checkpoint 4")
 
                 criterion.update(current_split.pos)
 
-                with gil:
-                    print("_node_split_best checkpoint 5")
+                #with gil:
+                #    print("_node_split_best checkpoint 5")
 
                 conditions_hold = True
                 for condition in splitter.postsplit_conditions:
@@ -819,14 +819,14 @@ cdef inline intp_t node_split_best(
                         conditions_hold = False
                         break
                 
-                with gil:
-                    print("_node_split_best checkpoint 6")
+                #with gil:
+                #    print("_node_split_best checkpoint 6")
 
                 if not conditions_hold:
                     continue
                 
-                with gil:
-                    print("_node_split_best checkpoint 7")
+                #with gil:
+                #    print("_node_split_best checkpoint 7")
 
                 current_proxy_improvement = criterion.proxy_impurity_improvement()
 
@@ -859,14 +859,14 @@ cdef inline intp_t node_split_best(
 
                     best_split = current_split  # copy
 
-        with gil:
-            print("_node_split_best checkpoint 8")
+        #with gil:
+        #    print("_node_split_best checkpoint 8")
         
         # Evaluate when there are missing values and all missing values goes
         # to the right node and non-missing values goes to the left node.
         if has_missing:
-            with gil:
-                print("has_missing = {has_missing}")
+            #with gil:
+            #    print("has_missing = {has_missing}")
 
             n_left, n_right = end - start - n_missing, n_missing
             p = end - n_missing

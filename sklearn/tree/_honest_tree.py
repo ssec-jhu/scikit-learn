@@ -106,6 +106,8 @@ class HonestTree(BaseDecisionTree):
             Fitted tree estimator.
         """
 
+        print("*** FITTING NEW HONEST TREE ***")
+        
         bta = self.target_tree._prep_data(
             X=X,
             y=y,
