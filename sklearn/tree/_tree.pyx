@@ -272,6 +272,10 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
         cdef TreeBuildSetActiveParentEventData parent_event_data
         cdef TreeBuildAddNodeEventData add_update_node_data
 
+        #with gil:
+        #    print("")
+        #    print("_build_body")
+
         while not e.target_stack.empty():
             e.stack_record = e.target_stack.top()
             e.target_stack.pop()
@@ -290,6 +294,16 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
 
             parent_event_data.parent_node_id = e.stack_record.parent
             parent_event_data.child_is_left = e.stack_record.is_left
+
+            #with gil:
+            #    print(f"start {e.start}")
+            #    print(f"end {e.end}")
+            #    print(f"parent {<int>e.parent}")
+            #    print(f"is_left {e.is_left}")
+            #    print(f"n_node_samples {e.n_node_samples}")
+            #    print(f"parent_node_id {parent_event_data.parent_node_id}")
+            #    print(f"child_is_left {parent_event_data.child_is_left}")
+
             if not broker.fire_event(TreeBuildEvent.SET_ACTIVE_PARENT, &parent_event_data):
                 e.rc = TreeBuildStatus.EVENT_ERROR
                 break
@@ -318,6 +332,9 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                     e.split,
                 )
 
+                #with gil:
+                #    print("_build_body checkpoint 1")
+
                 add_update_node_data.feature = e.split.feature
                 add_update_node_data.split_point = e.split.threshold
 
@@ -327,6 +344,9 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                 e.is_leaf = (e.is_leaf or e.split.pos >= e.end or
                             (e.split.improvement + EPSILON <
                             e.min_impurity_decrease))
+
+                #with gil:
+                #    print("_build_body checkpoint 2")
 
             if update == 1:
                 e.node_id = tree._update_node(
@@ -343,12 +363,27 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                 )
                 evt = TreeBuildEvent.ADD_NODE
 
+            #with gil:
+            #    print("_build_body checkpoint 3")
+
             if e.node_id == INTPTR_MAX:
+                #with gil:
+                #    print("_build_body checkpoint 3.25")
                 e.rc = TreeBuildStatus.EXCEPTION_OR_MEMORY_ERROR
                 break
 
+            #with gil:
+            #    print("_build_body checkpoint 3.5")
+
             add_update_node_data.node_id = e.node_id
+
+            #with gil:
+            #    print("_build_body checkpoint 3.6")
+
             broker.fire_event(evt, &add_update_node_data)
+
+            #with gil:
+            #    print("_build_body checkpoint 4")
 
             # Store value for all nodes, to facilitate tree/model
             # inspection and interpretation
@@ -359,6 +394,9 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                     e.parent_record.lower_bound,
                     e.parent_record.upper_bound
                 )
+
+            #with gil:
+            #    print("_build_body checkpoint 5")
 
             if not e.is_leaf:
                 if (

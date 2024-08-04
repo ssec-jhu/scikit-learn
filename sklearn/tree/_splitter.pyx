@@ -595,6 +595,10 @@ cdef inline intp_t node_split_best(
     Returns -1 in case of failure to allocate memory (and raise MemoryError)
     or 0 otherwise.
     """
+    #with gil:
+    #    print("")
+    #    print("in node_split_best")
+    
     cdef const int8_t[:] monotonic_cst = splitter.monotonic_cst
     cdef bint with_monotonic_cst = splitter.with_monotonic_cst
 
@@ -647,9 +651,15 @@ cdef inline intp_t node_split_best(
     cdef NodeSortFeatureEventData sort_event_data
     cdef NodeSplitEventData split_event_data
 
+    #with gil:
+    #    print("checkpoint 1")
+
     _init_split(&best_split, end)
 
     partitioner.init_node_split(start, end)
+
+    #with gil:
+    #    print("checkpoint 2")
 
     # Sample up to max_features without replacement using a
     # Fisher-Yates-based algorithm (using the local variables `f_i` and
@@ -731,6 +741,9 @@ cdef inline intp_t node_split_best(
         n_searches = 2 if has_missing else 1
 
         for i in range(n_searches):
+            #with gil:
+            #    print(f"search {i}")
+
             missing_go_to_left = i == 1
             criterion.missing_go_to_left = missing_go_to_left
             criterion.reset()
@@ -738,10 +751,24 @@ cdef inline intp_t node_split_best(
             p = start
 
             while p < end_non_missing:
+                with gil:
+                    print("")
+                    print("_node_split_best checkpoint 1")
+
                 partitioner.next_p(&p_prev, &p)
 
+                with gil:
+                    print("checkpoint 1.1")
+                    print(f"end_non_missing = {end_non_missing}")
+                    print(f"p = {<int32_t>p}")
+
                 if p >= end_non_missing:
+                    with gil:
+                        print("continuing")
                     continue
+
+                with gil:
+                    print("_node_split_best checkpoint 1.2")
 
                 current_split.pos = p
                 # probably want to assign this to current_split.threshold later,
@@ -750,6 +777,9 @@ cdef inline intp_t node_split_best(
                 current_threshold = (
                     feature_values[p_prev] / 2.0 + feature_values[p] / 2.0
                 )
+
+                with gil:
+                    print("_node_split_best checkpoint 2")
 
                 conditions_hold = True
                 for condition in splitter.presplit_conditions:
@@ -761,6 +791,9 @@ cdef inline intp_t node_split_best(
                         conditions_hold = False
                         break
 
+                with gil:
+                    print("_node_split_best checkpoint 3")
+
                 if not conditions_hold:
                     continue
 
@@ -768,7 +801,13 @@ cdef inline intp_t node_split_best(
                 if splitter.check_presplit_conditions(&current_split, n_missing, missing_go_to_left) == 1:
                     continue
 
+                with gil:
+                    print("_node_split_best checkpoint 4")
+
                 criterion.update(current_split.pos)
+
+                with gil:
+                    print("_node_split_best checkpoint 5")
 
                 conditions_hold = True
                 for condition in splitter.postsplit_conditions:
@@ -780,9 +819,15 @@ cdef inline intp_t node_split_best(
                         conditions_hold = False
                         break
                 
+                with gil:
+                    print("_node_split_best checkpoint 6")
+
                 if not conditions_hold:
                     continue
                 
+                with gil:
+                    print("_node_split_best checkpoint 7")
+
                 current_proxy_improvement = criterion.proxy_impurity_improvement()
 
                 if current_proxy_improvement > best_proxy_improvement:
@@ -814,9 +859,15 @@ cdef inline intp_t node_split_best(
 
                     best_split = current_split  # copy
 
+        with gil:
+            print("_node_split_best checkpoint 8")
+        
         # Evaluate when there are missing values and all missing values goes
         # to the right node and non-missing values goes to the left node.
         if has_missing:
+            with gil:
+                print("has_missing = {has_missing}")
+
             n_left, n_right = end - start - n_missing, n_missing
             p = end - n_missing
             missing_go_to_left = 0
@@ -837,14 +888,24 @@ cdef inline intp_t node_split_best(
                         current_split.pos = p
                         best_split = current_split
 
+        #with gil:
+        #    print("checkpoint 9")
+
     # Reorganize into samples[start:best_split.pos] + samples[best_split.pos:end]
     if best_split.pos < end:
+        #with gil:
+        #    print("checkpoint 10")
+
         partitioner.partition_samples_final(
             best_split.pos,
             best_split.threshold,
             best_split.feature,
             best_split.n_missing
         )
+
+        #with gil:
+        #    print("checkpoint 11")
+
         criterion.init_missing(best_split.n_missing)
         criterion.missing_go_to_left = best_split.missing_go_to_left
 
@@ -859,21 +920,37 @@ cdef inline intp_t node_split_best(
             best_split.impurity_right
         )
 
+        #with gil:
+        #    print("checkpoint 12")
+
         shift_missing_values_to_left_if_required(&best_split, samples, end)
+
+        #with gil:
+        #    print("checkpoint 13")
 
     # Respect invariant for constant features: the original order of
     # element in features[:n_known_constants] must be preserved for sibling
     # and child nodes
     memcpy(&features[0], &constant_features[0], sizeof(intp_t) * n_known_constants)
 
+    #with gil:
+    #    print("checkpoint 14")
+
     # Copy newly found constant features
     memcpy(&constant_features[n_known_constants],
            &features[n_known_constants],
            sizeof(intp_t) * n_found_constants)
 
+    #with gil:
+    #    print("checkpoint 15")
+
     # Return values
     parent_record.n_constant_features = n_total_constants
     split[0] = best_split
+
+    #with gil:
+    #    print("returning")
+
     return 0
 
 

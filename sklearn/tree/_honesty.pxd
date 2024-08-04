@@ -48,10 +48,12 @@ cdef class Honesty:
         Views views
         HonestEnv env
 
-cdef struct MinSamplesLeafConditionEnv:
-    intp_t min_samples
-    HonestEnv* honest_env
 
+cdef struct TrivialEnv:
+    vector[int32_t] event_types
+
+cdef class TrivialHandler(EventHandler):
+    cdef TrivialEnv _env
 
 cdef class NodeSortFeatureHandler(EventHandler):
     pass
@@ -64,6 +66,11 @@ cdef class SetActiveParentHandler(EventHandler):
 
 cdef class TrivialCondition(SplitCondition):
     pass
+
+
+cdef struct MinSamplesLeafConditionEnv:
+    intp_t min_samples
+    HonestEnv* honest_env
 
 cdef class HonestMinSamplesLeafCondition(SplitCondition):
     cdef MinSamplesLeafConditionEnv _env

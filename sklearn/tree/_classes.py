@@ -579,8 +579,6 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
                 monotonic_cst *= -1
         self.monotonic_cst_ = monotonic_cst
 
-        print(f"conditions: {[c.__class__ for c in self.presplit_conditions]}")
-
         if not isinstance(self.splitter, BaseSplitter):
             splitter = SPLITTERS[self.splitter](
                 criterion,
