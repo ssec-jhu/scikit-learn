@@ -125,6 +125,7 @@ cdef struct TreeBuildSetActiveParentEventData:
 cdef struct TreeBuildAddNodeEventData:
     intp_t parent_node_id
     intp_t node_id
+    bint is_leaf
     bint is_left
     intp_t feature
     float64_t split_point

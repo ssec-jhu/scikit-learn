@@ -323,6 +323,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
             e.is_leaf = e.is_leaf or e.parent_record.impurity <= EPSILON
 
             add_update_node_data.parent_node_id = e.parent
+            add_update_node_data.is_leaf = e.is_leaf
             add_update_node_data.is_left = e.is_left
             add_update_node_data.feature = -1
             add_update_node_data.split_point = NAN
