@@ -984,7 +984,7 @@ cdef class BaseTree:
 
     Downstream classes must implement methods to actually traverse the tree.
     """
-    cdef intp_t _resize(
+    cdef int _resize(
         self,
         intp_t capacity
     ) except -1 nogil:
@@ -999,7 +999,7 @@ cdef class BaseTree:
             with gil:
                 raise MemoryError()
 
-    cdef intp_t _resize_c(self, intp_t capacity=INTPTR_MAX) except -1 nogil:
+    cdef int _resize_c(self, intp_t capacity=INTPTR_MAX) except -1 nogil:
         """Guts of _resize
 
         Returns -1 in case of failure to allocate memory (and raise MemoryError)
