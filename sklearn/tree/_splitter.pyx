@@ -387,6 +387,8 @@ cdef class Splitter(BaseSplitter):
 
         This takes some metric that is stored in the Criterion
         object and checks against internal stop metrics.
+
+        Returns 1 if condition is not met, and 0 if it is.
         """
         cdef float64_t min_weight_leaf = self.min_weight_leaf
 
