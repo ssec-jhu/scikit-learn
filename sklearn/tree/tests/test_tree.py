@@ -326,7 +326,7 @@ def test_honest_iris():
         #"ExtraTreeClassifier": ExtraTreeClassifier,
     }
 
-    for (name, Tree), criterion in product(CLF_TREES.items(), CLF_CRITERIONS):
+    for (name, Tree), criterion in product(clf_trees.items(), CLF_CRITERIONS):
         clf = Tree(criterion=criterion, random_state=0)
         hf = HonestTree(clf)
         hf.fit(iris.data, iris.target)

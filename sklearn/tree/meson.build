@@ -22,6 +22,9 @@ tree_extension_metadata = {
      'override_options': ['cython_language=cpp', 'optimization=3']},
   '_honesty':
     {'sources': ['_honesty.pyx'],
+     'override_options': ['cython_language=cpp', 'optimization=3']},
+  '_test':
+    {'sources': ['_test.pyx'],
      'override_options': ['cython_language=cpp', 'optimization=3']}
 }
 
