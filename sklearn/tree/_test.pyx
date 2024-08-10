@@ -3,7 +3,8 @@ from libc.math cimport INFINITY
 
 from ._honest_tree import HonestTree
 
-from ._honesty cimport Honesty
+from ._honesty cimport Honesty, HonestEnv, Views
+from ._tree cimport BaseTree, Tree
 
 
 Interval = namedtuple('Interval', ['lower', 'upper'])
@@ -18,21 +19,49 @@ cdef class TestNode():
     def valid(self, float32_t[:, :] X, intp_t[:] samples):
         for i in range(self.start_idx, self.start_idx + self.n):
             for j in range(len(self.bounds)):
-                if X[j][samples[i]] < self.bounds[j].lower:
+                if X[samples[i]][j] < self.bounds[j].lower:
+                    print("")
+                    print(f"start_idx = {self.start_idx}")
+                    print(f"n = {self.n}")
+                    print(f"dimension = {j}")
+                    print(f"X.shape = {X.shape}")
+                    print(f"bounds = {self.bounds[j]}")
+                    print(f"range = {[i for i in range(self.start_idx, self.start_idx + self.n)]}")
+                    print(f"failed on {X[samples[i]][j]} < {self.bounds[j].lower}")
+                    print(f"leaf feature values = {[ X[samples[ii]][j] for ii in range(self.start_idx, self.start_idx + self.n) ]}")
                     return False
                 
-                if X[j][samples[i]] > self.bounds[j].upper:
+                if X[samples[i]][j] > self.bounds[j].upper:
+                    print("")
+                    print(f"start_idx = {self.start_idx}")
+                    print(f"n = {self.n}")
+                    print(f"dimension = {j}")
+                    print(f"X.shape = {X.shape}")
+                    print(f"bounds = {self.bounds[j]}")
+                    print(f"range = {[i for i in range(self.start_idx, self.start_idx + self.n)]}")
+                    print(f"failed on {X[samples[i]][j]} > {self.bounds[j].upper}")
+                    print(f"leaf feature values = {[ X[samples[ii]][j] for ii in range(self.start_idx, self.start_idx + self.n) ]}")
                     return False
         
         return True
+    
+    def to_dict(self):
+        return {
+            "bounds": self.bounds,
+            "start_idx": self.start_idx,
+            "n": self.n
+        }
 
 
 cdef class HonestyTester():
     def __init__(self, honest_tree: HonestTree):
-        self.nodes = <Node*>honest_tree.honesty.target_tree.nodes[0]
-        self.intervals = honest_tree.honesty.env.tree
-        self.X = honest_tree.honesty.views.X
-        self.samples = honest_tree.honesty.views.samples
+        cdef Honesty honesty = honest_tree.honesty
+        cdef Tree t = honest_tree.target_tree.tree_
+
+        self.nodes = t.nodes
+        self.intervals = honesty.env.tree
+        self.X = honesty.views.X
+        self.samples = honesty.views.samples
 
 
     #cdef struct Node:

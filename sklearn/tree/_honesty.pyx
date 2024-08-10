@@ -1,4 +1,5 @@
 from cython cimport cast
+from libc.stdint cimport uintptr_t
 from libc.math cimport floor, fmax, log2, pow, isnan, NAN
 
 from ._partitioner cimport DensePartitioner, SparsePartitioner
@@ -66,6 +67,9 @@ cdef class Honesty:
         ) if issparse(X) else DensePartitioner(
             X, samples, feature_values, missing_values_in_feature_mask
         )
+    
+    def get_honest_env(self):
+        return <uintptr_t>&self.env
 
 
 cdef bint _handle_trivial(

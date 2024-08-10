@@ -45,7 +45,7 @@ cdef class Honesty:
         public list postsplit_conditions    # python list of SplitCondition
         public list tree_event_handlers     # python list of EventHandler
 
-        Views views
+        public Views views
         HonestEnv env
 
 

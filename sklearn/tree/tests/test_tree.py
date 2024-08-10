@@ -36,6 +36,7 @@ from sklearn.tree._classes import (
     SPARSE_SPLITTERS,
 )
 from sklearn.tree._honest_tree import HonestTree
+from sklearn.tree._test import HonestyTester
 from sklearn.tree._tree import (
     NODE_DTYPE,
     TREE_LEAF,
@@ -321,6 +322,8 @@ def test_iris():
         )
 
 def test_honest_iris():
+    import json
+
     clf_trees = {
         "DecisionTreeClassifier": DecisionTreeClassifier,
         #"ExtraTreeClassifier": ExtraTreeClassifier,
@@ -334,6 +337,11 @@ def test_honest_iris():
         assert score > 0.9, "Failed with {0}, criterion = {1} and score = {2}".format(
             name, criterion, score
         )
+        ht = HonestyTester(hf)
+        invalid_nodes = ht.get_invalid_nodes()
+        invalid_nodes_dict = [node.to_dict() if hasattr(node, 'to_dict') else node for node in invalid_nodes]
+        invalid_nodes_json = json.dumps(invalid_nodes_dict, indent=4)
+        assert len(invalid_nodes) == 0, "Failed with invalid nodes: {0}".format(invalid_nodes_json)
 
         clf = Tree(criterion=criterion, max_features=2, random_state=0)
         hf = HonestTree(clf)
@@ -342,6 +350,11 @@ def test_honest_iris():
         assert score > 0.5, "Failed with {0}, criterion = {1} and score = {2}".format(
             name, criterion, score
         )
+        ht = HonestyTester(hf)
+        invalid_nodes = ht.get_invalid_nodes()
+        invalid_nodes_dict = [node.to_dict() if hasattr(node, 'to_dict') else node for node in invalid_nodes]
+        invalid_nodes_json = json.dumps(invalid_nodes_dict, indent=4)
+        assert len(invalid_nodes) == 0, "Failed with invalid nodes: {0}".format(invalid_nodes_json)
 
 @pytest.mark.parametrize("name, Tree", REG_TREES.items())
 @pytest.mark.parametrize("criterion", REG_CRITERIONS)
