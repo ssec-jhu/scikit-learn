@@ -6,10 +6,22 @@
 
 from ._events cimport EventData, EventHandler, EventHandlerEnv, EventType
 from ._partitioner cimport Partitioner
-from ._splitter cimport Splitter
-from ._splitter cimport NodeSplitEvent, NodeSortFeatureEventData, NodeSplitEventData
-from ._splitter cimport SplitConditionEnv, SplitConditionFunction, SplitConditionClosure, SplitCondition
-from ._tree cimport TreeBuildEvent, TreeBuildSetActiveParentEventData, TreeBuildAddNodeEventData
+from ._splitter cimport (
+    NodeSplitEvent,
+    NodeSortFeatureEventData,
+    NodeSplitEventData,
+    Splitter,
+    SplitConditionEnv,
+    SplitConditionFunction,
+    SplitConditionClosure,
+    SplitCondition
+)
+from ._tree cimport (
+    Tree,
+    TreeBuildEvent,
+    TreeBuildSetActiveParentEventData,
+    TreeBuildAddNodeEventData
+)
 
 from ..utils._typedefs cimport float32_t, float64_t, intp_t, int32_t, uint32_t
 
@@ -34,6 +46,7 @@ cdef class Views:
 cdef struct HonestEnv:
     void* data_views
     vector[Interval] tree
+    intp_t node_count
     Interval* active_parent
     Interval active_node
     intp_t active_is_left

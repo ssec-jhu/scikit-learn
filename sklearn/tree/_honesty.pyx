@@ -2,6 +2,7 @@ from cython cimport cast
 from libc.stdint cimport uintptr_t
 from libc.math cimport floor, fmax, log2, pow, isnan, NAN
 
+from ._criterion cimport BaseCriterion, Criterion
 from ._partitioner cimport DensePartitioner, SparsePartitioner
 
 import numpy as np
@@ -30,6 +31,7 @@ cdef class Honesty:
         if tree_event_handlers is None:
             tree_event_handlers = []
 
+        self.env.node_count = 0
         self.views = Views()
         self.views.X = X
         self.views.samples = samples
@@ -68,8 +70,36 @@ cdef class Honesty:
             X, samples, feature_values, missing_values_in_feature_mask
         )
     
-    def get_honest_env(self):
-        return <uintptr_t>&self.env
+    def init_criterion(
+        self,
+        Criterion criterion,
+        y,
+        sample_weights,
+        weighted_n_samples,
+        sample_indices
+    ):
+        criterion.init(y, sample_weights, weighted_n_samples, sample_indices)
+
+    def set_sample_pointers(self, Criterion criterion, intp_t start, intp_t end):
+        criterion.set_sample_pointers(start, end)
+    
+    def init_sum_missing(self, Criterion criterion):
+        criterion.init_sum_missing()
+    
+    def node_value(self, Tree tree, Criterion criterion, intp_t i):
+        criterion.node_value(<float64_t*>(tree.value + i * tree.value_stride))
+
+    def get_node_count(self):
+        return self.env.node_count
+
+    def resize_tree(self, Tree tree, intp_t capacity):
+        tree._resize(capacity)
+    
+    def get_node_range(self, i):
+        return (
+            self.env.tree[i].start_idx,
+            self.env.tree[i].start_idx + self.env.tree[i].n
+        )
 
 
 cdef bint _handle_trivial(
@@ -309,6 +339,8 @@ cdef bint _handle_add_node(
     (<Views>env.data_views).partitioner.partition_samples_final(
         interval.split_idx, interval.split_value, interval.feature, (<Views>env.data_views).partitioner.n_missing
         )
+    
+    env.node_count += 1
 
     with gil:
         #print("_handle_add_node checkpoint 10")
