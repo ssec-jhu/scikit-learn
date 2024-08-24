@@ -40,6 +40,16 @@ class HonestDecisionTree(BaseDecisionTree):
         self.honest_fraction = honest_fraction
         self.honest_prior = honest_prior
         self.stratify = stratify
+        setattr(
+            self,
+            "_estimator_type",
+            getattr(target_tree, "_estimator_type", None)
+        )
+        setattr(
+            self,
+            "class_weight",
+            getattr(self.target_tree, "class_weight", None)
+        )
 
 
     @_fit_context(prefer_skip_nested_validation=True)
@@ -147,6 +157,12 @@ class HonestDecisionTree(BaseDecisionTree):
                 check_input=check_input
             )
 
+        setattr(
+            self,
+            "classes_",
+            getattr(self.target_tree, "classes_", None)
+        )
+
         n_samples = target_bta.X.shape[0]
         samples = np.empty(n_samples, dtype=np.intp)
         weighted_n_samples = 0.0
@@ -190,6 +206,8 @@ class HonestDecisionTree(BaseDecisionTree):
 
         for i in range(self.honesty.get_node_count()):
             start, end = self.honesty.get_node_range(i)
+            print(f"setting sample range for node {i}: ({start}, {end})")
+            print(f"node {i} is leaf: {self.honesty.is_leaf(i)}")
             self.honesty.set_sample_pointers(criterion, start, end)
 
             if missing_values_in_feature_mask is not None:

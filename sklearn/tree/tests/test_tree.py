@@ -334,29 +334,67 @@ def test_honest_iris():
         clf = Tree(criterion=criterion, random_state=0, store_leaf_values=True)
         hf = HonestDecisionTree(clf)
         hf.fit(iris.data, iris.target)
-        #dishonest = clf.predict(iris.data)
-        #honest = hf.predict(iris.data)
 
+        # verify their apply results are identical
+        dishonest = clf.apply(iris.data)
+        honest = hf.apply(iris.data)
+        assert np.sum((honest - dishonest)**2) == 0, (
+            "Failed with apply delta. dishonest: {0}, honest: {1}".format(
+                dishonest, honest
+            )
+        )
+
+        # verify their predict results are identical
+        # technically they may correctly differ,
+        # but at least in this test case they tend not to,
+        # so it's a reasonable smoke test
+        dishonest = clf.predict(iris.data)
+        honest = hf.predict(iris.data)
+        assert np.sum((honest - dishonest)**2) == 0, (
+            "Failed with predict delta. dishonest: {0}, honest: {1}".format(
+                dishonest, honest
+            )
+        )
+
+        # verify that at least some leaf sample sets
+        # are in fact different for corresponding leaves.
+        # again, possible to fail by chance,
+        # but usually a reasonable smoke test
+        leaf_eq = []
+        leaf_ct = 0
         for i in range(hf.tree_.node_count):
-            dishonest = Honesty.get_value_samples_ndarray(clf.tree_, i)
-            honest = Honesty.get_value_samples_ndarray(hf.tree_, i)
-            print(f"Node {i}:")
-            print(f"dishonest: {dishonest.reshape(-1)}")
-            print(f"honest: {honest.reshape(-1)}")
-            print("")
+            if hf.honesty.is_leaf(i):
+                leaf_ct += 1
+                dishonest = Honesty.get_value_samples_ndarray(clf.tree_, i)
+                honest = Honesty.get_value_samples_ndarray(hf.tree_, i)
+                uniques = np.unique(np.concatenate((dishonest, honest)))
+                dishonest_hist, _ = np.histogram(dishonest, bins=len(uniques))
+                honest_hist, _ = np.histogram(honest, bins=len(uniques))
+                if np.array_equal(dishonest_hist, honest_hist):
+                    leaf_eq.append(i)
+                    print(f"node {i}: ")
+                    print(f"dishonest: {dishonest.T}")
+                    print(f"   honest: {honest.T}")
+                    print(f"dishonest_hist: {dishonest_hist}")
+                    print(f"   honest_hist: {honest_hist}")
 
-        #m = np.array([dishonest, iris.target, honest]).T
-        #print(m)
-        #score = accuracy_score(clf.predict(iris.data), iris.target)
-        #print(f"dishonest score: {score}")
-        #assert score > 0.9, "Failed with {0}, criterion = {1} and dishonest score = {2}".format(
-        #    name, criterion, score
-        #)
-        #score = accuracy_score(hf.predict(iris.data), iris.target)
-        #print(f"honest score: {score}")
-        #assert score > 0.9, "Failed with {0}, criterion = {1} and honest score = {2}".format(
-        #    name, criterion, score
-        #)
+        assert len(leaf_eq) != leaf_ct, (
+            "Failed with all leaves equal: {0}".format(leaf_eq)
+        )
+
+        # check accuracy
+        score = accuracy_score(clf.predict(iris.data), iris.target)
+        print(f"dishonest score: {score}")
+        assert score > 0.9, "Failed with {0}, criterion = {1} and dishonest score = {2}".format(
+           name, criterion, score
+        )
+        score = accuracy_score(hf.predict(iris.data), iris.target)
+        print(f"honest score: {score}")
+        assert score > 0.9, "Failed with {0}, criterion = {1} and honest score = {2}".format(
+           name, criterion, score
+        )
+
+        # verify no invalid nodes in honest tree
         ht = HonestyTester(hf)
         invalid_nodes = ht.get_invalid_nodes()
         invalid_nodes_dict = [node.to_dict() if hasattr(node, 'to_dict') else node for node in invalid_nodes]
