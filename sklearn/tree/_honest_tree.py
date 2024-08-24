@@ -13,32 +13,13 @@ from ._classes import (
     BaseDecisionTree,
     CRITERIA_CLF, CRITERIA_REG, DENSE_SPLITTERS, SPARSE_SPLITTERS
 )
-from ._honesty import Honesty
+from ._honesty import HonestTree, Honesty
 from ._tree import DOUBLE, Tree
-
-
-# class BuildTreeArgs:
-#     def __init__(
-#         self,
-#         X,
-#         y,
-#         sample_weight,
-#         missing_values_in_feature_mask,
-#         min_samples_leaf,
-#         min_weight_leaf,
-#         max_leaf_nodes,
-#         min_samples_split,
-#         max_depth,
-#         random_state
-#     ):
-#         for name, value in locals().items():
-#             if name != 'self':
-#                 setattr(self, name, value)
 
 
 # note to self: max_n_classes is the maximum number of classes observed
 # in any response variable dimension
-class HonestTree(BaseDecisionTree):
+class HonestDecisionTree(BaseDecisionTree):
     _parameter_constraints: dict = {
         **BaseDecisionTree._parameter_constraints,
         "honest_fraction": [Interval(RealNotInt, 0.0, 1.0, closed="neither")],
@@ -181,12 +162,17 @@ class HonestTree(BaseDecisionTree):
 
         # fingers crossed sklearn.utils.validation.check_is_fitted doesn't
         # change its behavior
-        self.tree_ = Tree(
+        self.tree_ = HonestTree(
             self.target_tree.n_features_in_,
             target_bta.n_classes,
-            self.target_tree.n_outputs_
+            self.target_tree.n_outputs_,
+            self.target_tree.tree_
         )
         self.honesty.resize_tree(self.tree_, self.honesty.get_node_count())
+        self.tree_.node_count = self.honesty.get_node_count()
+
+        print(f"dishonest node count = {self.target_tree.tree_.node_count}")
+        print(f"honest node count = {self.tree_.node_count}")
 
         criterion = BaseDecisionTree._create_criterion(
             self.target_tree,
@@ -210,6 +196,9 @@ class HonestTree(BaseDecisionTree):
                 self.honesty.init_sum_missing(criterion)
             
             self.honesty.node_value(self.tree_, criterion, i)
+
+            if self.honesty.is_leaf(i):
+                self.honesty.node_samples(self.tree_, criterion, i)
 
         return self.target_tree
 
@@ -318,7 +307,3 @@ class HonestTree(BaseDecisionTree):
         structure_weight[self.honest_indices_] = 0
 
         return structure_weight, honest_weight
-
-
-    def apply(self, X, check_input=True):
-        return self.target_tree.apply(X, check_input=check_input)

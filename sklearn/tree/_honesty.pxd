@@ -62,6 +62,10 @@ cdef class Honesty:
         HonestEnv env
 
 
+cdef class HonestTree(Tree):
+    cdef public Tree target_tree
+
+
 cdef struct TrivialEnv:
     vector[int32_t] event_types
 

@@ -5,8 +5,20 @@ from libc.math cimport floor, fmax, log2, pow, isnan, NAN
 from ._criterion cimport BaseCriterion, Criterion
 from ._partitioner cimport DensePartitioner, SparsePartitioner
 
+cimport numpy as cnp
 import numpy as np
 from scipy.sparse import issparse
+
+
+cdef class HonestTree(Tree):
+    """args[0] must be target_tree of type Tree"""
+    def __init__(self, intp_t n_features, cnp.ndarray n_classes, intp_t n_outputs, Tree target_tree, *args):
+        self.target_tree = target_tree
+
+    cpdef cnp.ndarray apply(self, object X):
+        """Finds the terminal region (=leaf node) for each sample in X."""
+
+        return self.target_tree.apply(X)
 
 
 cdef class Honesty:
@@ -88,6 +100,9 @@ cdef class Honesty:
     
     def node_value(self, Tree tree, Criterion criterion, intp_t i):
         criterion.node_value(<float64_t*>(tree.value + i * tree.value_stride))
+    
+    def node_samples(self, Tree tree, Criterion criterion, intp_t i):
+        criterion.node_samples(tree.value_samples[i])
 
     def get_node_count(self):
         return self.env.node_count
@@ -100,6 +115,13 @@ cdef class Honesty:
             self.env.tree[i].start_idx,
             self.env.tree[i].start_idx + self.env.tree[i].n
         )
+    
+    def is_leaf(self, i):
+        return self.env.tree[i].feature == -1
+    
+    @staticmethod
+    def get_value_samples_ndarray(Tree tree, intp_t node_id):
+        return tree._get_value_samples_ndarray(node_id)
 
 
 cdef bint _handle_trivial(
