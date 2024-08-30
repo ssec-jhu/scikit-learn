@@ -51,6 +51,11 @@ class HonestDecisionTree(BaseDecisionTree):
             getattr(self.target_tree, "class_weight", None)
         )
 
+        # TODO: unwide this gross antipattern
+        if is_classifier(target_tree):
+            self.predict_proba = self.target_tree.predict_proba
+            self.predict_log_proba = self.target_tree.predict_log_proba
+
 
     @_fit_context(prefer_skip_nested_validation=True)
     def fit(
@@ -101,6 +106,13 @@ class HonestDecisionTree(BaseDecisionTree):
             missing_values_in_feature_mask=missing_values_in_feature_mask,
             classes=classes
         )
+
+        # TODO: go fix TODO in classes.py line 636
+        if target_bta.n_classes is None:
+            target_bta.n_classes = np.array(
+                [1] * self.target_tree.n_outputs_,
+                dtype=np.intp
+            )
 
         # Determine output settings
         self._init_output_shape(target_bta.X, target_bta.y, target_bta.classes)
@@ -178,6 +190,7 @@ class HonestDecisionTree(BaseDecisionTree):
 
         # fingers crossed sklearn.utils.validation.check_is_fitted doesn't
         # change its behavior
+        print(f"n_classes = {target_bta.n_classes}")
         self.tree_ = HonestTree(
             self.target_tree.n_features_in_,
             target_bta.n_classes,
