@@ -34,6 +34,7 @@ from sklearn.ensemble import (
 from sklearn.ensemble._forest import (
     _generate_unsampled_indices,
     _get_n_samples_bootstrap,
+    HonestRandomForestClassifier,
 )
 from sklearn.exceptions import NotFittedError
 from sklearn.metrics import (
@@ -270,6 +271,24 @@ def test_iris_criterion(name, criterion):
     score = clf.score(iris.data, iris.target)
     assert score > 0.5, "Failed with criterion %s and score = %f" % (criterion, score)
 
+@pytest.mark.parametrize("criterion", ("gini", "log_loss"))
+def test_honest_forest_iris_criterion(criterion):
+    # Check consistency on dataset iris.
+    print("yo")
+    clf = HonestRandomForestClassifier(
+        n_estimators=10, criterion=criterion, random_state=1
+    )
+    clf.fit(iris.data, iris.target)
+    score = clf.score(iris.data, iris.target)
+    assert score > 0.9, "Failed with criterion %s and score = %f" % (criterion, score)
+
+    clf = HonestRandomForestClassifier(
+        n_estimators=10, criterion=criterion, max_features=2, random_state=1
+    )
+    clf.fit(iris.data, iris.target)
+    score = clf.score(iris.data, iris.target)
+    assert score > 0.5, "Failed with criterion %s and score = %f" % (criterion, score)
+    print("sup")
 
 @pytest.mark.parametrize("name", FOREST_REGRESSORS)
 @pytest.mark.parametrize(

@@ -16,6 +16,8 @@ from ._classes import (
 from ._honesty import HonestTree, Honesty
 from ._tree import DOUBLE, Tree
 
+import inspect
+
 
 # note to self: max_n_classes is the maximum number of classes observed
 # in any response variable dimension
@@ -29,33 +31,58 @@ class HonestDecisionTree(BaseDecisionTree):
 
     def __init__(
         self,
-        target_tree,
+        *,
+        criterion=None,
+        target_tree_class=None,
+        target_tree_kwargs=None,
         random_state=None,
         honest_fraction=0.5,
         honest_prior="empirical",
         stratify=False
     ):
-        self.target_tree = target_tree
+        self.criterion = criterion
+        self.target_tree_class = target_tree_class
+        self.target_tree_kwargs = target_tree_kwargs if target_tree_kwargs is not None else {}
+
         self.random_state = random_state
         self.honest_fraction = honest_fraction
         self.honest_prior = honest_prior
         self.stratify = stratify
-        setattr(
-            self,
-            "_estimator_type",
-            getattr(target_tree, "_estimator_type", None)
-        )
-        setattr(
-            self,
-            "class_weight",
-            getattr(self.target_tree, "class_weight", None)
-        )
 
-        # TODO: unwide this gross antipattern
-        if is_classifier(target_tree):
-            self.predict_proba = self.target_tree.predict_proba
-            self.predict_log_proba = self.target_tree.predict_log_proba
+        # TODO: unwind this whole gross antipattern
+        if target_tree_class is not None:
+            HonestDecisionTree._target_tree_hack(self, target_tree_class, **target_tree_kwargs)
+    
+    @staticmethod
+    def _target_tree_hack(honest_tree, target_tree_class, **kwargs):
+        honest_tree.target_tree_class = target_tree_class
+        honest_tree.target_tree = target_tree_class(**kwargs)
 
+        # copy over the attributes of the target tree
+        for attr_name in vars(honest_tree.target_tree):
+            setattr(
+                honest_tree,
+                attr_name,
+                getattr(honest_tree.target_tree, attr_name, None)
+            )
+
+        if is_classifier(honest_tree.target_tree):
+            honest_tree._estimator_type = honest_tree.target_tree._estimator_type
+            honest_tree.predict_proba = honest_tree.target_tree.predict_proba
+            honest_tree.predict_log_proba = honest_tree.target_tree.predict_log_proba
+
+    def _fit(
+        self,
+        X,
+        y,
+        sample_weight=None,
+        check_input=True,
+        missing_values_in_feature_mask=None,
+        classes=None
+    ):
+        return self.fit(
+            X, y, sample_weight, check_input, missing_values_in_feature_mask, classes
+        )
 
     @_fit_context(prefer_skip_nested_validation=True)
     def fit(
@@ -98,6 +125,8 @@ class HonestDecisionTree(BaseDecisionTree):
             Fitted tree estimator.
         """
 
+        # run this again because of the way ensemble creates estimators
+        HonestDecisionTree._target_tree_hack(self, self.target_tree_class, **self.target_tree_kwargs)
         target_bta = self.target_tree._prep_data(
             X=X,
             y=y,
@@ -231,7 +260,13 @@ class HonestDecisionTree(BaseDecisionTree):
             if self.honesty.is_leaf(i):
                 self.honesty.node_samples(self.tree_, criterion, i)
 
-        return self.target_tree
+        setattr(
+            self,
+            "__sklearn_is_fitted__",
+            lambda: True
+        )
+ 
+        return self
 
     
     def _init_output_shape(self, X, y, classes=None):

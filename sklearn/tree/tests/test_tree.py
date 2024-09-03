@@ -325,18 +325,19 @@ def test_iris():
 def test_honest_iris():
     import json
 
-    clf_trees = {
-        "DecisionTreeClassifier": DecisionTreeClassifier,
-        #"ExtraTreeClassifier": ExtraTreeClassifier,
-    }
-
-    for (name, Tree), criterion in product(clf_trees.items(), CLF_CRITERIONS):
-        clf = Tree(criterion=criterion, random_state=0, store_leaf_values=True)
-        hf = HonestDecisionTree(clf)
+    for criterion in CLF_CRITERIONS:
+        hf = HonestDecisionTree(
+            target_tree_class=DecisionTreeClassifier,
+            target_tree_kwargs={
+                'criterion': criterion,
+                'random_state': 0,
+                'store_leaf_values': True
+            }
+        )
         hf.fit(iris.data, iris.target)
 
         # verify their apply results are identical
-        dishonest = clf.apply(iris.data)
+        dishonest = hf.target_tree.apply(iris.data)
         honest = hf.apply(iris.data)
         assert np.sum((honest - dishonest)**2) == 0, (
             "Failed with apply delta. dishonest: {0}, honest: {1}".format(
@@ -348,7 +349,7 @@ def test_honest_iris():
         # technically they may correctly differ,
         # but at least in this test case they tend not to,
         # so it's a reasonable smoke test
-        dishonest = clf.predict(iris.data)
+        dishonest = hf.target_tree.predict(iris.data)
         honest = hf.predict(iris.data)
         assert np.sum((honest - dishonest)**2) == 0, (
             "Failed with predict delta. dishonest: {0}, honest: {1}".format(
@@ -365,7 +366,7 @@ def test_honest_iris():
         for i in range(hf.tree_.node_count):
             if hf.honesty.is_leaf(i):
                 leaf_ct += 1
-                dishonest = Honesty.get_value_samples_ndarray(clf.tree_, i)
+                dishonest = Honesty.get_value_samples_ndarray(hf.target_tree.tree_, i)
                 honest = Honesty.get_value_samples_ndarray(hf.tree_, i)
                 uniques = np.unique(np.concatenate((dishonest, honest)))
                 dishonest_hist, _ = np.histogram(dishonest, bins=len(uniques))
@@ -383,19 +384,19 @@ def test_honest_iris():
         )
 
         # check accuracy
-        score = accuracy_score(clf.predict(iris.data), iris.target)
+        score = accuracy_score(hf.target_tree.predict(iris.data), iris.target)
         print(f"dishonest score: {score}")
         assert score > 0.9, "Failed with {0}, criterion = {1} and dishonest score = {2}".format(
-           name, criterion, score
+           "DecisionTreeClassifier", criterion, score
         )
         score = accuracy_score(hf.predict(iris.data), iris.target)
         print(f"honest score: {score}")
         assert score > 0.9, "Failed with {0}, criterion = {1} and honest score = {2}".format(
-           name, criterion, score
+           "DecisionTreeClassifier", criterion, score
         )
 
         # check predict_proba
-        dishonest_proba = clf.predict_log_proba(iris.data)
+        dishonest_proba = hf.target_tree.predict_log_proba(iris.data)
         honest_proba = hf.predict_log_proba(iris.data)
         assert len(dishonest_proba) == len(honest_proba), ((
             "Mismatched predict_log_proba: len(dishonest_proba) = {0}, "
