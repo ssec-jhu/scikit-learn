@@ -67,6 +67,7 @@ from sklearn.utils.multiclass import (
     check_classification_targets,
     type_of_target,
 )
+from sklearn.utils._tags import get_tags
 from sklearn.utils.parallel import Parallel, delayed
 from sklearn.utils.validation import (
     _check_feature_names_in,
@@ -83,18 +84,7 @@ from ..tree import (
     ExtraTreeRegressor,
 )
 from ..tree._tree import DOUBLE, DTYPE
-from ..utils import check_random_state, compute_sample_weight
-from ..utils._param_validation import Interval, RealNotInt, StrOptions
-from ..utils._tags import get_tags
-from ..utils.multiclass import check_classification_targets, type_of_target
-from ..utils.parallel import Parallel, delayed
-from ..utils.validation import (
-    _check_feature_names_in,
-    _check_sample_weight,
-    _num_samples,
-    check_is_fitted,
-)
-from ._base import BaseEnsemble, _partition_estimators
+
 
 __all__ = [
     "RandomForestClassifier",
