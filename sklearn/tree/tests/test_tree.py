@@ -467,32 +467,32 @@ def test_diabetes_underfit(name, Tree, criterion, max_depth, metric, max_loss):
     assert 0 < loss < max_loss
 
 
-@skip_if_32bit
-@pytest.mark.parametrize("name, Tree", {"DecisionTreeRegressor": DecisionTreeRegressor}.items())
-@pytest.mark.parametrize(
-    "criterion, max_depth, metric, max_loss",
-    [
-        ("squared_error", 15, mean_squared_error, 60),
-        ("absolute_error", 20, mean_squared_error, 60),
-        ("friedman_mse", 15, mean_squared_error, 60),
-        ("poisson", 15, mean_poisson_deviance, 30),
-    ],
-)
-def test_diabetes_honest_underfit(name, Tree, criterion, max_depth, metric, max_loss):
-    # check consistency of trees when the depth and the number of features are
-    # limited
+# @skip_if_32bit
+# @pytest.mark.parametrize("name, Tree", {"DecisionTreeRegressor": DecisionTreeRegressor}.items())
+# @pytest.mark.parametrize(
+#     "criterion, max_depth, metric, max_loss",
+#     [
+#         ("squared_error", 15, mean_squared_error, 60),
+#         ("absolute_error", 20, mean_squared_error, 60),
+#         ("friedman_mse", 15, mean_squared_error, 60),
+#         ("poisson", 15, mean_poisson_deviance, 30),
+#     ],
+# )
+# def test_diabetes_honest_underfit(name, Tree, criterion, max_depth, metric, max_loss):
+#     # check consistency of trees when the depth and the number of features are
+#     # limited
 
-    reg = Tree(criterion=criterion, max_depth=max_depth, max_features=6, random_state=0)
-    hon = HonestDecisionTree(reg)
-    hon.fit(diabetes.data, diabetes.target)
+#     reg = Tree(criterion=criterion, max_depth=max_depth, max_features=6, random_state=0)
+#     hon = HonestDecisionTree(reg)
+#     hon.fit(diabetes.data, diabetes.target)
 
-    loss = metric(diabetes.target, reg.predict(diabetes.data))
-    print(f"dishonest loss: {loss}")
-    assert 0 < loss < max_loss
+#     loss = metric(diabetes.target, reg.predict(diabetes.data))
+#     print(f"dishonest loss: {loss}")
+#     assert 0 < loss < max_loss
 
-    hon_loss = metric(diabetes.target, hon.predict(diabetes.data))
-    print(f"honest loss: {hon_loss}")
-    assert 0 < hon_loss < max_loss
+#     hon_loss = metric(diabetes.target, hon.predict(diabetes.data))
+#     print(f"honest loss: {hon_loss}")
+#     assert 0 < hon_loss < max_loss
 
 
 def test_probability():

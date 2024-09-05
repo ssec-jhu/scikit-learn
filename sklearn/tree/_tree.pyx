@@ -334,9 +334,9 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
             # impurity == 0 with tolerance due to rounding errors
             e.is_leaf = e.is_leaf or e.parent_record.impurity <= EPSILON
 
-            with gil:
-                print(f"is_leaf 2 = {e.is_leaf}")
-                print(f"parent_record.impurity = {e.parent_record.impurity}")
+            #with gil:
+            #    print(f"is_leaf 2 = {e.is_leaf}")
+            #    print(f"parent_record.impurity = {e.parent_record.impurity}")
 
             add_update_node_data.parent_node_id = e.parent
             add_update_node_data.is_left = e.is_left

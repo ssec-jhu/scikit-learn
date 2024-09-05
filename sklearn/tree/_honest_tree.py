@@ -24,6 +24,8 @@ import inspect
 class HonestDecisionTree(BaseDecisionTree):
     _parameter_constraints: dict = {
         **BaseDecisionTree._parameter_constraints,
+        "target_tree_class": [BaseDecisionTree],
+        "target_tree_kwargs": [dict],
         "honest_fraction": [Interval(RealNotInt, 0.0, 1.0, closed="neither")],
         "honest_prior": [StrOptions({"empirical", "uniform", "ignore"})],
         "stratify": ["boolean"],

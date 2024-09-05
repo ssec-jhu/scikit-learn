@@ -5,6 +5,7 @@ from ._base import BaseEnsemble
 from ._forest import (
     ExtraTreesClassifier,
     ExtraTreesRegressor,
+    HonestRandomForestClassifier,
     RandomForestClassifier,
     RandomForestRegressor,
     RandomTreesEmbedding,
@@ -21,6 +22,7 @@ from ._weight_boosting import AdaBoostClassifier, AdaBoostRegressor
 
 __all__ = [
     "BaseEnsemble",
+    "HonestRandomForestClassifier",
     "RandomForestClassifier",
     "RandomForestRegressor",
     "RandomTreesEmbedding",

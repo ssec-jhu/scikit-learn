@@ -364,25 +364,25 @@ cdef bint _handle_add_node(
     
     env.node_count += 1
 
-    with gil:
-        #print("_handle_add_node checkpoint 10")
-        print("")
-        print(f"parent_node_id = {data.parent_node_id}")
-        print(f"node_id = {data.node_id}")
-        print(f"is_leaf = {data.is_leaf}")
-        print(f"is_left = {data.is_left}")
-        print(f"feature = {data.feature}")
-        print(f"split_point = {data.split_point}")
-        print("---")
-        print(f"start_idx = {interval.start_idx}")
-        if parent is not NULL:
-            print(f"parent.start_idx = {parent.start_idx}")
-            print(f"parent.split_idx = {parent.split_idx}")
-            print(f"parent.n = {parent.n}")
-        print(f"n = {interval.n}")
-        print(f"feature = {interval.feature}")
-        print(f"split_idx = {interval.split_idx}")
-        print(f"split_value = {interval.split_value}")
+    #with gil:
+    #    #print("_handle_add_node checkpoint 10")
+    #    print("")
+    #    print(f"parent_node_id = {data.parent_node_id}")
+    #    print(f"node_id = {data.node_id}")
+    #    print(f"is_leaf = {data.is_leaf}")
+    #    print(f"is_left = {data.is_left}")
+    #    print(f"feature = {data.feature}")
+    #    print(f"split_point = {data.split_point}")
+    #    print("---")
+    #    print(f"start_idx = {interval.start_idx}")
+    #    if parent is not NULL:
+    #        print(f"parent.start_idx = {parent.start_idx}")
+    #        print(f"parent.split_idx = {parent.split_idx}")
+    #        print(f"parent.n = {parent.n}")
+    #    print(f"n = {interval.n}")
+    #    print(f"feature = {interval.feature}")
+    #    print(f"split_idx = {interval.split_idx}")
+    #    print(f"split_value = {interval.split_value}")
 
 
 cdef class AddNodeHandler(EventHandler):
@@ -404,8 +404,8 @@ cdef bint _trivial_condition(
     float64_t upper_bound,
     SplitConditionEnv split_condition_env
 ) noexcept nogil:
-    with gil:
-        print("TrivialCondition called")
+    #with gil:
+    #    print("TrivialCondition called")
     
     return True
 

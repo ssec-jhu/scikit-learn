@@ -87,6 +87,7 @@ from ..tree._honest_tree import HonestDecisionTree
 from ..tree._tree import DOUBLE, DTYPE
 
 __all__ = [
+    "HonestRandomForestClassifier",
     "RandomForestClassifier",
     "RandomForestRegressor",
     "ExtraTreesClassifier",
