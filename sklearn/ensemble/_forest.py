@@ -59,22 +59,6 @@ from sklearn.ensemble._hist_gradient_boosting.binning import _BinMapper
 from sklearn.exceptions import DataConversionWarning
 from sklearn.metrics import accuracy_score, r2_score
 from sklearn.preprocessing import OneHotEncoder
-from sklearn.utils import check_random_state, compute_sample_weight
-from sklearn.utils._openmp_helpers import _openmp_effective_n_threads
-from sklearn.utils._param_validation import Interval, RealNotInt, StrOptions
-from sklearn.utils.multiclass import (
-    _check_partial_fit_first_call,
-    check_classification_targets,
-    type_of_target,
-)
-from sklearn.utils._tags import get_tags
-from sklearn.utils.parallel import Parallel, delayed
-from sklearn.utils.validation import (
-    _check_feature_names_in,
-    _check_sample_weight,
-    _num_samples,
-    check_is_fitted,
-)
 
 from ..tree import (
     BaseDecisionTree,
@@ -84,7 +68,19 @@ from ..tree import (
     ExtraTreeRegressor,
 )
 from ..tree._tree import DOUBLE, DTYPE
-
+from ..utils import check_random_state, compute_sample_weight
+from ..utils._param_validation import Interval, RealNotInt, StrOptions
+from ..utils._tags import get_tags
+from ..utils.multiclass import check_classification_targets, type_of_target
+from ..utils.parallel import Parallel, delayed
+from ..utils.validation import (
+    _check_feature_names_in,
+    _check_sample_weight,
+    _num_samples,
+    check_is_fitted,
+    validate_data,
+)
+from ._base import BaseEnsemble, _partition_estimators
 
 __all__ = [
     "RandomForestClassifier",
@@ -445,7 +441,8 @@ class BaseForest(MultiOutputMixin, BaseEnsemble, metaclass=ABCMeta):
         if issparse(y):
             raise ValueError("sparse multilabel-indicator for y is not supported.")
 
-        X, y = self._validate_data(
+        X, y = validate_data(
+            self,
             X,
             y,
             multi_output=True,
@@ -779,7 +776,8 @@ class BaseForest(MultiOutputMixin, BaseEnsemble, metaclass=ABCMeta):
         else:
             ensure_all_finite = True
 
-        X = self._validate_data(
+        X = validate_data(
+            self,
             X,
             dtype=DTYPE,
             accept_sparse="csr",

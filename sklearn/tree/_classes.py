@@ -32,9 +32,11 @@ from sklearn.utils.multiclass import (
 )
 from sklearn.utils.validation import (
     _assert_all_finite_element_wise,
+    _check_n_features,
     _check_sample_weight,
     assert_all_finite,
     check_is_fitted,
+    validate_data,
 )
 
 from . import _criterion, _splitter, _tree
@@ -250,12 +252,12 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
                 dtype=DTYPE, accept_sparse="csc", ensure_all_finite=False
             )
             check_y_params = dict(ensure_2d=False, dtype=None)
-            if y is not None or self._get_tags()["requires_y"]:
-                X, y = self._validate_data(
-                    X, y, validate_separately=(check_X_params, check_y_params)
+            if y is not None or self.__sklearn_tags__().requires_y:
+                X, y = validate_data(
+                    self, X, y, validate_separately=(check_X_params, check_y_params)
                 )
             else:
-                X = self._validate_data(X, **check_X_params)
+                X = validate_data(self, X, **check_X_params)
 
             missing_values_in_feature_mask = (
                 self._compute_missing_values_in_feature_mask(X)
@@ -642,7 +644,8 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
                 ensure_all_finite = "allow-nan"
             else:
                 ensure_all_finite = True
-            X = self._validate_data(
+            X = validate_data(
+                self,
                 X,
                 dtype=DTYPE,
                 accept_sparse="csr",
@@ -655,7 +658,7 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
                 raise ValueError("No support for np.int64 index based sparse matrices")
         else:
             # The number of features is checked regardless of `check_input`
-            self._check_n_features(X, reset=False)
+            _check_n_features(self, X, reset=False)
         return X
 
     def predict(self, X, check_input=True):
