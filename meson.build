@@ -44,8 +44,6 @@ endif
 
 tempita = files('sklearn/_build_utils/tempita.py')
 
-option('enable_custom_target', type: 'boolean', value: true, description: 'Enable custom target')
-
 py = import('python').find_installation(pure: false)
 
 # Copy all the .py files to the install dir, rather than using
