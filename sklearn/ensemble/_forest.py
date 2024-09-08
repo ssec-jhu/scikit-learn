@@ -2481,9 +2481,15 @@ class HonestRandomForestClassifier(ForestClassifier):
             dict,
             list,
             None,
-        ],
+        ]
     }
     _parameter_constraints.pop("splitter")
+    _parameter_constraints.pop("max_samples")
+    _parameter_constraints["max_samples"] = [
+        None,
+        Interval(RealNotInt, 0.0, None, closed="right"),
+        Interval(Integral, 1, None, closed="left"),
+    ]
 
     def __init__(
         self,
@@ -2509,7 +2515,9 @@ class HonestRandomForestClassifier(ForestClassifier):
         max_samples=None,
         max_bins=None,
         store_leaf_values=False,
-        monotonic_cst=None
+        monotonic_cst=None,
+        stratify=False,
+        honest_prior="ignore"
     ):
         self.target_tree_kwargs = {
             "criterion": criterion,
@@ -2528,7 +2536,9 @@ class HonestRandomForestClassifier(ForestClassifier):
         super().__init__(
             estimator=HonestDecisionTree(
                 target_tree_class=target_tree_class,
-                target_tree_kwargs=self.target_tree_kwargs
+                target_tree_kwargs=self.target_tree_kwargs,
+                stratify=stratify,
+                honest_prior=honest_prior
             ),
             n_estimators=n_estimators,
             estimator_params=(
@@ -2572,6 +2582,8 @@ class HonestRandomForestClassifier(ForestClassifier):
         self.monotonic_cst = monotonic_cst
         self.ccp_alpha = ccp_alpha
         self.target_tree_class = target_tree_class
+        self.stratify = stratify
+        self.honest_prior = honest_prior
 
 
 class RandomForestRegressor(ForestRegressor):

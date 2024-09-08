@@ -24,9 +24,9 @@ import inspect
 class HonestDecisionTree(BaseDecisionTree):
     _parameter_constraints: dict = {
         **BaseDecisionTree._parameter_constraints,
-        "target_tree_class": [BaseDecisionTree],
+        "target_tree_class": "no_validation",
         "target_tree_kwargs": [dict],
-        "honest_fraction": [Interval(RealNotInt, 0.0, 1.0, closed="neither")],
+        "honest_fraction": [Interval(RealNotInt, 0.0, 1.0, closed="both")],
         "honest_prior": [StrOptions({"empirical", "uniform", "ignore"})],
         "stratify": ["boolean"],
     }
@@ -221,7 +221,7 @@ class HonestDecisionTree(BaseDecisionTree):
 
         # fingers crossed sklearn.utils.validation.check_is_fitted doesn't
         # change its behavior
-        print(f"n_classes = {target_bta.n_classes}")
+        #print(f"n_classes = {target_bta.n_classes}")
         self.tree_ = HonestTree(
             self.target_tree.n_features_in_,
             target_bta.n_classes,
@@ -231,8 +231,8 @@ class HonestDecisionTree(BaseDecisionTree):
         self.honesty.resize_tree(self.tree_, self.honesty.get_node_count())
         self.tree_.node_count = self.honesty.get_node_count()
 
-        print(f"dishonest node count = {self.target_tree.tree_.node_count}")
-        print(f"honest node count = {self.tree_.node_count}")
+        #print(f"dishonest node count = {self.target_tree.tree_.node_count}")
+        #print(f"honest node count = {self.tree_.node_count}")
 
         criterion = BaseDecisionTree._create_criterion(
             self.target_tree,
@@ -250,8 +250,8 @@ class HonestDecisionTree(BaseDecisionTree):
 
         for i in range(self.honesty.get_node_count()):
             start, end = self.honesty.get_node_range(i)
-            print(f"setting sample range for node {i}: ({start}, {end})")
-            print(f"node {i} is leaf: {self.honesty.is_leaf(i)}")
+            #print(f"setting sample range for node {i}: ({start}, {end})")
+            #print(f"node {i} is leaf: {self.honesty.is_leaf(i)}")
             self.honesty.set_sample_pointers(criterion, start, end)
 
             if missing_values_in_feature_mask is not None:
