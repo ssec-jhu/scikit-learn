@@ -252,7 +252,7 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
                 dtype=DTYPE, accept_sparse="csc", ensure_all_finite=False
             )
             check_y_params = dict(ensure_2d=False, dtype=None)
-            if y is not None or self.__sklearn_tags__().required:
+            if y is not None or self.__sklearn_tags__().target_tags.required:
                 X, y = validate_data(
                     self, X, y, validate_separately=(check_X_params, check_y_params)
                 )
@@ -1398,7 +1398,11 @@ class DecisionTreeClassifier(ClassifierMixin, BaseDecisionTree):
             check_X_params = dict(dtype=DTYPE, accept_sparse="csc")
             check_y_params = dict(ensure_2d=False, dtype=None)
             X, y = validate_data(
-                self, X, y, reset=False, validate_separately=(check_X_params, check_y_params)
+                self,
+                X,
+                y,
+                reset=False,
+                validate_separately=(check_X_params, check_y_params),
             )
             if issparse(X):
                 X.sort_indices()

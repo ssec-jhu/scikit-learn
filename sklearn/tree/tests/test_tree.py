@@ -54,7 +54,10 @@ from sklearn.utils._testing import (
     ignore_warnings,
     skip_if_32bit,
 )
-from sklearn.utils.estimator_checks import check_sample_weights_invariance
+from sklearn.utils.estimator_checks import (
+    check_sample_weights_invariance,
+    parametrize_with_checks,
+)
 from sklearn.utils.fixes import (
     _IS_32BIT,
     COO_CONTAINERS,
@@ -233,6 +236,18 @@ def assert_tree_equal(d, s, message):
     assert_array_almost_equal(
         d.value[external], s.value[external], err_msg=message + ": inequal value"
     )
+
+
+@parametrize_with_checks(
+    [
+        DecisionTreeClassifier(),
+        DecisionTreeRegressor(),
+        ExtraTreeClassifier(),
+        ExtraTreeRegressor(),
+    ]
+)
+def test_sklearn_compatible_estimator(estimator, check):
+    check(estimator)
 
 
 def test_classification_toy():
