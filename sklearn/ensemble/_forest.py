@@ -1254,15 +1254,7 @@ class ForestClassifier(ClassifierMixin, BaseForest, metaclass=ABCMeta):
         self : object
             Returns the instance itself.
         """
-        X, y = validate_data(
-            self,
-            X,
-            y,
-            multi_output=True,
-            accept_sparse="csc",
-            dtype=DTYPE,
-            ensure_all_finite=False,
-        )
+        self._validate_params()
 
         # validate input parameters
         first_call = _check_partial_fit_first_call(self, classes=classes)

@@ -1375,15 +1375,7 @@ class DecisionTreeClassifier(ClassifierMixin, BaseDecisionTree):
         self : DecisionTreeClassifier
             Fitted estimator.
         """
-        X, y = validate_data(
-            self,
-            X,
-            y,
-            multi_output=True,
-            accept_sparse="csc",
-            dtype=DTYPE,
-            ensure_all_finite=False,
-        )
+        self._validate_params()
 
         # validate input parameters
         first_call = _check_partial_fit_first_call(self, classes=classes)
@@ -1406,11 +1398,7 @@ class DecisionTreeClassifier(ClassifierMixin, BaseDecisionTree):
             check_X_params = dict(dtype=DTYPE, accept_sparse="csc")
             check_y_params = dict(ensure_2d=False, dtype=None)
             X, y = validate_data(
-                self,
-                X,
-                y,
-                reset=False,
-                validate_separately=(check_X_params, check_y_params),
+                self, X, y, reset=False, validate_separately=(check_X_params, check_y_params)
             )
             if issparse(X):
                 X.sort_indices()
