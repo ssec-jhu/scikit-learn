@@ -1397,8 +1397,8 @@ class DecisionTreeClassifier(ClassifierMixin, BaseDecisionTree):
             # csr.
             check_X_params = dict(dtype=DTYPE, accept_sparse="csc")
             check_y_params = dict(ensure_2d=False, dtype=None)
-            X, y = self._validate_data(
-                X, y, reset=False, validate_separately=(check_X_params, check_y_params)
+            X, y = validate_data(
+                self, X, y, reset=False, validate_separately=(check_X_params, check_y_params)
             )
             if issparse(X):
                 X.sort_indices()
