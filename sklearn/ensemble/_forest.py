@@ -36,10 +36,10 @@ Single and multi-output problems are both handled.
 # SPDX-License-Identifier: BSD-3-Clause
 
 
-from time import time
 import threading
 from abc import ABCMeta, abstractmethod
 from numbers import Integral, Real
+from time import time
 from warnings import catch_warnings, simplefilter, warn
 
 import numpy as np
@@ -54,22 +54,20 @@ from sklearn.base import (
     _fit_context,
     is_classifier,
 )
+from sklearn.ensemble._base import BaseEnsemble, _partition_estimators
+from sklearn.ensemble._hist_gradient_boosting.binning import _BinMapper
 from sklearn.exceptions import DataConversionWarning
 from sklearn.metrics import accuracy_score, r2_score
 from sklearn.preprocessing import OneHotEncoder
-from ..tree import (
-    BaseDecisionTree,
-    DecisionTreeClassifier,
-    DecisionTreeRegressor,
-    ExtraTreeClassifier,
-    ExtraTreeRegressor,
-)
-from ..tree._tree import DOUBLE, DTYPE
 from sklearn.utils import check_random_state, compute_sample_weight
 from sklearn.utils._openmp_helpers import _openmp_effective_n_threads
 from sklearn.utils._param_validation import Interval, RealNotInt, StrOptions
 from sklearn.utils._tags import get_tags
-from sklearn.utils.multiclass import check_classification_targets, type_of_target
+from sklearn.utils.multiclass import (
+    _check_partial_fit_first_call,
+    check_classification_targets,
+    type_of_target,
+)
 from sklearn.utils.parallel import Parallel, delayed
 from sklearn.utils.validation import (
     _check_feature_names_in,
@@ -78,9 +76,15 @@ from sklearn.utils.validation import (
     check_is_fitted,
     validate_data,
 )
-from sklearn.ensemble._hist_gradient_boosting.binning import _BinMapper
-from ._base import BaseEnsemble, _partition_estimators
 
+from ..tree import (
+    BaseDecisionTree,
+    DecisionTreeClassifier,
+    DecisionTreeRegressor,
+    ExtraTreeClassifier,
+    ExtraTreeRegressor,
+)
+from ..tree._tree import DOUBLE, DTYPE
 
 __all__ = [
     "RandomForestClassifier",

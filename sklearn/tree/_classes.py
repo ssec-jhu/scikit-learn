@@ -26,7 +26,10 @@ from sklearn.base import (
 )
 from sklearn.utils import Bunch, check_random_state, compute_sample_weight
 from sklearn.utils._param_validation import Hidden, Interval, RealNotInt, StrOptions
-from sklearn.utils.multiclass import check_classification_targets
+from sklearn.utils.multiclass import (
+    _check_partial_fit_first_call,
+    check_classification_targets,
+)
 from sklearn.utils.validation import (
     _assert_all_finite_element_wise,
     _check_n_features,
@@ -35,6 +38,7 @@ from sklearn.utils.validation import (
     check_is_fitted,
     validate_data,
 )
+
 from . import _criterion, _splitter, _tree
 from ._criterion import BaseCriterion
 from ._splitter import BaseSplitter
