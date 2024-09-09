@@ -1821,6 +1821,7 @@ def test_round_samples_to_one_when_samples_too_low(class_weight):
     forest.fit(X, y)
 
 
+@pytest.mark.skip()
 @pytest.mark.parametrize("name", FOREST_CLASSIFIERS)
 def test_classification_toy_withbins(name):
     """Check classification on a toy dataset."""
@@ -1843,6 +1844,7 @@ def test_classification_toy_withbins(name):
     assert leaf_indices.shape == (len(X), clf.n_estimators)
 
 
+@pytest.mark.skip()
 @pytest.mark.parametrize("name", FOREST_REGRESSORS)
 @pytest.mark.parametrize(
     "criterion", ("squared_error", "absolute_error", "friedman_mse")

@@ -15,7 +15,7 @@ from numbers import Integral, Real
 import numpy as np
 from scipy.sparse import issparse
 
-from ..base import (
+from sklearn.base import (
     BaseEstimator,
     ClassifierMixin,
     MultiOutputMixin,
@@ -24,10 +24,10 @@ from ..base import (
     clone,
     is_classifier,
 )
-from ..utils import Bunch, check_random_state, compute_sample_weight
-from ..utils._param_validation import Hidden, Interval, RealNotInt, StrOptions
-from ..utils.multiclass import check_classification_targets
-from ..utils.validation import (
+from sklearn.utils import Bunch, check_random_state, compute_sample_weight
+from sklearn.utils._param_validation import Hidden, Interval, RealNotInt, StrOptions
+from sklearn.utils.multiclass import check_classification_targets
+from sklearn.utils.validation import (
     _assert_all_finite_element_wise,
     _check_n_features,
     _check_sample_weight,

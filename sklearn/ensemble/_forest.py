@@ -46,7 +46,7 @@ import numpy as np
 from scipy.sparse import hstack as sparse_hstack
 from scipy.sparse import issparse
 
-from ..base import (
+from sklearn.base import (
     ClassifierMixin,
     MultiOutputMixin,
     RegressorMixin,
@@ -54,9 +54,9 @@ from ..base import (
     _fit_context,
     is_classifier,
 )
-from ..exceptions import DataConversionWarning
-from ..metrics import accuracy_score, r2_score
-from ..preprocessing import OneHotEncoder
+from sklearn.exceptions import DataConversionWarning
+from sklearn.metrics import accuracy_score, r2_score
+from sklearn.preprocessing import OneHotEncoder
 from ..tree import (
     BaseDecisionTree,
     DecisionTreeClassifier,
@@ -65,20 +65,20 @@ from ..tree import (
     ExtraTreeRegressor,
 )
 from ..tree._tree import DOUBLE, DTYPE
-from ..utils import check_random_state, compute_sample_weight
-from ..utils._openmp_helpers import _openmp_effective_n_threads
-from ..utils._param_validation import Interval, RealNotInt, StrOptions
-from ..utils._tags import get_tags
-from ..utils.multiclass import check_classification_targets, type_of_target
-from ..utils.parallel import Parallel, delayed
-from ..utils.validation import (
+from sklearn.utils import check_random_state, compute_sample_weight
+from sklearn.utils._openmp_helpers import _openmp_effective_n_threads
+from sklearn.utils._param_validation import Interval, RealNotInt, StrOptions
+from sklearn.utils._tags import get_tags
+from sklearn.utils.multiclass import check_classification_targets, type_of_target
+from sklearn.utils.parallel import Parallel, delayed
+from sklearn.utils.validation import (
     _check_feature_names_in,
     _check_sample_weight,
     _num_samples,
     check_is_fitted,
     validate_data,
 )
-from ._hist_gradient_boosting.binning import _BinMapper
+from sklearn.ensemble._hist_gradient_boosting.binning import _BinMapper
 from ._base import BaseEnsemble, _partition_estimators
 
 
