@@ -2517,7 +2517,8 @@ class HonestRandomForestClassifier(ForestClassifier):
         store_leaf_values=False,
         monotonic_cst=None,
         stratify=False,
-        honest_prior="ignore"
+        honest_prior="ignore",
+        honest_fraction=0.5
     ):
         self.target_tree_kwargs = {
             "criterion": criterion,
@@ -2538,12 +2539,16 @@ class HonestRandomForestClassifier(ForestClassifier):
                 target_tree_class=target_tree_class,
                 target_tree_kwargs=self.target_tree_kwargs,
                 stratify=stratify,
-                honest_prior=honest_prior
+                honest_prior=honest_prior,
+                honest_fraction=honest_fraction
             ),
             n_estimators=n_estimators,
             estimator_params=(
                 "target_tree_class",
-                "target_tree_kwargs"
+                "target_tree_kwargs",
+                "stratify",
+                "honest_prior",
+                "honest_fraction"
             ),
             # estimator_params=(
             #     "criterion",
@@ -2584,6 +2589,45 @@ class HonestRandomForestClassifier(ForestClassifier):
         self.target_tree_class = target_tree_class
         self.stratify = stratify
         self.honest_prior = honest_prior
+        self.honest_fraction = honest_fraction
+
+
+    @property
+    def structure_indices_(self):
+        """The indices used to learn the structure of the trees."""
+        check_is_fitted(self)
+        return [tree.structure_indices_ for tree in self.estimators_]
+
+    @property
+    def honest_indices_(self):
+        """The indices used to fit the leaf nodes."""
+        check_is_fitted(self)
+        return [tree.honest_indices_ for tree in self.estimators_]
+
+    @property
+    def oob_samples_(self):
+        """The sample indices that are out-of-bag.
+
+        Only utilized if ``bootstrap=True``, otherwise, all samples are "in-bag".
+        """
+        if self.bootstrap is False and (
+            self._n_samples_bootstrap is None or self._n_samples_bootstrap == self._n_samples
+        ):
+            raise RuntimeError(
+                "Cannot extract out-of-bag samples when bootstrap is False and "
+                "n_samples == n_samples_bootstrap"
+            )
+        check_is_fitted(self)
+
+        oob_samples = []
+
+        possible_indices = np.arange(self._n_samples)
+        for structure_idx, honest_idx in zip(self.structure_indices_, self.honest_indices_):
+            _oob_samples = np.setdiff1d(
+                possible_indices, np.concatenate((structure_idx, honest_idx))
+            )
+            oob_samples.append(_oob_samples)
+        return oob_samples
 
 
 class RandomForestRegressor(ForestRegressor):
