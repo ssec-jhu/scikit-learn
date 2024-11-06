@@ -198,6 +198,115 @@ DATASETS = {
 }
 
 
+def make_trunk_classification(
+    n_samples,
+    n_dim,
+    n_informative=1,
+    simulation: str = "trunk",
+    mu_0: float = 0,
+    mu_1: float = 1,
+    rho: int = 0,
+    band_type: str = "ma",
+    return_params: bool = False,
+    mix: float = 0.5,
+    seed=None,
+):
+    if n_dim < n_informative:
+        raise ValueError(
+            f"Number of informative dimensions {n_informative} must be less than number "
+            f"of dimensions, {n_dim}"
+        )
+    rng = np.random.default_rng(seed=seed)
+    rng1 = np.random.default_rng(seed=seed)
+    mu_0 = np.array([mu_0 / np.sqrt(i) for i in range(1, n_informative + 1)])
+    mu_1 = np.array([mu_1 / np.sqrt(i) for i in range(1, n_informative + 1)])
+    if rho != 0:
+        if band_type == "ma":
+            cov = _moving_avg_cov(n_informative, rho)
+        elif band_type == "ar":
+            cov = _autoregressive_cov(n_informative, rho)
+        else:
+            raise ValueError(f'Band type {band_type} must be one of "ma", or "ar".')
+    else:
+        cov = np.identity(n_informative)
+    if mix < 0 or mix > 1:
+        raise ValueError("Mix must be between 0 and 1.")
+    # speed up computations for large multivariate normal matrix with SVD approximation
+    if n_informative > 1000:
+        method = "cholesky"
+    else:
+        method = "svd"
+    if simulation == "trunk":
+        X = np.vstack(
+            (
+                rng.multivariate_normal(mu_0, cov, n_samples // 2, method=method),
+                rng1.multivariate_normal(mu_1, cov, n_samples // 2, method=method),
+            )
+        )
+    elif simulation == "trunk_overlap":
+        mixture_idx = rng.choice(
+            2, n_samples // 2, replace=True, shuffle=True, p=[mix, 1 - mix]
+        )
+        norm_params = [[mu_0, cov], [mu_1, cov]]
+        X_mixture = np.fromiter(
+            (
+                rng.multivariate_normal(*(norm_params[i]), size=1, method=method)
+                for i in mixture_idx
+            ),
+            dtype=np.dtype((float, n_informative)),
+        )
+        X_mixture_2 = np.fromiter(
+            (
+                rng1.multivariate_normal(*(norm_params[i]), size=1, method=method)
+                for i in mixture_idx
+            ),
+            dtype=np.dtype((float, n_informative)),
+        )
+        X = np.vstack(
+            (
+                X_mixture.reshape(n_samples // 2, n_informative),
+                X_mixture_2.reshape(n_samples // 2, n_informative),
+            )
+        )
+    elif simulation == "trunk_mix":
+        mixture_idx = rng.choice(
+            2, n_samples // 2, replace=True, shuffle=True, p=[mix, 1 - mix]
+        )
+        norm_params = [[mu_0, cov], [mu_1, cov]]
+        X_mixture = np.fromiter(
+            (
+                rng1.multivariate_normal(*(norm_params[i]), size=1, method=method)
+                for i in mixture_idx
+            ),
+            dtype=np.dtype((float, n_informative)),
+        )
+        X = np.vstack(
+            (
+                rng.multivariate_normal(
+                    np.zeros(n_informative), cov, n_samples // 2, method=method
+                ),
+                X_mixture.reshape(n_samples // 2, n_informative),
+            )
+        )
+    else:
+        raise ValueError(f"Simulation must be: trunk, trunk_overlap, trunk_mix")
+    if n_dim > n_informative:
+        X = np.hstack(
+            (X, rng.normal(loc=0, scale=1, size=(X.shape[0], n_dim - n_informative)))
+        )
+    y = np.concatenate((np.zeros(n_samples // 2), np.ones(n_samples // 2)))
+    if return_params:
+        returns = [X, y]
+        if simulation == "trunk":
+            returns += [[mu_0, mu_1], [cov, cov]]
+        elif simulation == "trunk-overlap":
+            returns += [[np.zeros(n_informative), np.zeros(n_informative)], [cov, cov]]
+        elif simulation == "trunk-mix":
+            returns += [*list(zip(*norm_params)), X_mixture]
+        return returns
+    return X, y
+
+
 def assert_tree_equal(d, s, message):
     assert (
         s.node_count == d.node_count
@@ -373,11 +482,6 @@ def test_honest_iris():
                 honest_hist, _ = np.histogram(honest, bins=len(uniques))
                 if np.array_equal(dishonest_hist, honest_hist):
                     leaf_eq.append(i)
-                    print(f"node {i}: ")
-                    print(f"dishonest: {dishonest.T}")
-                    print(f"   honest: {honest.T}")
-                    print(f"dishonest_hist: {dishonest_hist}")
-                    print(f"   honest_hist: {honest_hist}")
 
         assert len(leaf_eq) != leaf_ct, (
             "Failed with all leaves equal: {0}".format(leaf_eq)
@@ -385,12 +489,10 @@ def test_honest_iris():
 
         # check accuracy
         score = accuracy_score(hf.target_tree.predict(iris.data), iris.target)
-        print(f"dishonest score: {score}")
         assert score > 0.9, "Failed with {0}, criterion = {1} and dishonest score = {2}".format(
            "DecisionTreeClassifier", criterion, score
         )
         score = accuracy_score(hf.predict(iris.data), iris.target)
-        print(f"honest score: {score}")
         assert score > 0.9, "Failed with {0}, criterion = {1} and honest score = {2}".format(
            "DecisionTreeClassifier", criterion, score
         )
@@ -416,22 +518,75 @@ def test_honest_iris():
         invalid_nodes_json = json.dumps(invalid_nodes_dict, indent=4)
         assert len(invalid_nodes) == 0, "Failed with invalid nodes: {0}".format(invalid_nodes_json)
 
-        #clf = Tree(criterion=criterion, max_features=2, random_state=0)
-        #hf = HonestDecisionTree(clf)
-        #hf.fit(iris.data, iris.target)
-        #score = accuracy_score(clf.predict(iris.data), iris.target)
-        #assert score > 0.5, "Failed with {0}, criterion = {1} and dishonest score = {2}".format(
-        #    name, criterion, score
-        #)
-        #score = accuracy_score(hf.predict(iris.data), iris.target)
-        #assert score > 0.5, "Failed with {0}, criterion = {1} and honest score = {2}".format(
-        #    name, criterion, score
-        #)
-        #ht = HonestyTester(hf)
-        #invalid_nodes = ht.get_invalid_nodes()
-        #invalid_nodes_dict = [node.to_dict() if hasattr(node, 'to_dict') else node for node in invalid_nodes]
-        #invalid_nodes_json = json.dumps(invalid_nodes_dict, indent=4)
-        #assert len(invalid_nodes) == 0, "Failed with invalid nodes: {0}".format(invalid_nodes_json)
+
+def test_honest_separation():
+    # verify that splits are made independently of the honest data set.
+    # we do this by eliminating randomness from the training process,
+    # running repeated trials with honest Y labels shuffled, and verifying
+    # that the splits do not change.
+    N_ITER = 100
+    SAMPLE_SIZE = 1024
+    RANDOM_STATE = 1
+    HONEST_PRIOR = "ignore"
+    HONEST_FRACTION = 0.9
+
+    X, y = make_trunk_classification(
+        n_samples=SAMPLE_SIZE,
+        n_dim=1,
+        n_informative=1,
+        seed=0,
+    )
+    X_t = np.concatenate((
+        X[: SAMPLE_SIZE // 2],
+        X[SAMPLE_SIZE // 2 :]
+    ))
+    y_t = np.concatenate((np.zeros(SAMPLE_SIZE // 2), np.ones(SAMPLE_SIZE // 2)))
+
+
+    tree=HonestDecisionTree(
+        target_tree_class=DecisionTreeClassifier,
+        target_tree_kwargs={
+            "criterion": "gini",
+            "random_state": RANDOM_STATE
+        },
+        honest_prior=HONEST_PRIOR,
+        honest_fraction=HONEST_FRACTION
+    )
+    tree.fit(X_t, y_t.ravel())
+    honest_tree = tree.tree_
+    structure_tree = honest_tree.target_tree
+    old_threshold = structure_tree.threshold.copy()
+    old_y = y_t.copy()
+
+    honest_indices = tree.honest_indices_
+
+    for _ in range(N_ITER):
+        y_perm = y_t.copy()
+        honest_shuffled = honest_indices.copy()
+        np.random.shuffle(honest_shuffled)
+        for i in range(len(honest_indices)):
+            y_perm[honest_indices[i]] = y_t[honest_shuffled[i]]
+        
+        assert(not np.array_equal(y_t, y_perm))
+        assert(not np.array_equal(old_y, y_perm))
+
+        tree=HonestDecisionTree(
+            target_tree_class=DecisionTreeClassifier,
+            target_tree_kwargs={
+                "criterion": "gini",
+                "random_state": RANDOM_STATE
+            },
+            honest_prior=HONEST_PRIOR,
+            honest_fraction=HONEST_FRACTION
+        )
+        tree.fit(X_t, y_perm.ravel())
+        honest_tree = tree.tree_
+        structure_tree = honest_tree.target_tree
+
+        assert(np.array_equal(old_threshold, structure_tree.threshold))
+        old_threshold = structure_tree.threshold.copy()
+        old_y = y_perm.copy()
+
 
 @pytest.mark.parametrize("name, Tree", REG_TREES.items())
 @pytest.mark.parametrize("criterion", REG_CRITERIONS)
@@ -465,34 +620,6 @@ def test_diabetes_underfit(name, Tree, criterion, max_depth, metric, max_loss):
     reg.fit(diabetes.data, diabetes.target)
     loss = metric(diabetes.target, reg.predict(diabetes.data))
     assert 0 < loss < max_loss
-
-
-# @skip_if_32bit
-# @pytest.mark.parametrize("name, Tree", {"DecisionTreeRegressor": DecisionTreeRegressor}.items())
-# @pytest.mark.parametrize(
-#     "criterion, max_depth, metric, max_loss",
-#     [
-#         ("squared_error", 15, mean_squared_error, 60),
-#         ("absolute_error", 20, mean_squared_error, 60),
-#         ("friedman_mse", 15, mean_squared_error, 60),
-#         ("poisson", 15, mean_poisson_deviance, 30),
-#     ],
-# )
-# def test_diabetes_honest_underfit(name, Tree, criterion, max_depth, metric, max_loss):
-#     # check consistency of trees when the depth and the number of features are
-#     # limited
-
-#     reg = Tree(criterion=criterion, max_depth=max_depth, max_features=6, random_state=0)
-#     hon = HonestDecisionTree(reg)
-#     hon.fit(diabetes.data, diabetes.target)
-
-#     loss = metric(diabetes.target, reg.predict(diabetes.data))
-#     print(f"dishonest loss: {loss}")
-#     assert 0 < loss < max_loss
-
-#     hon_loss = metric(diabetes.target, hon.predict(diabetes.data))
-#     print(f"honest loss: {hon_loss}")
-#     assert 0 < hon_loss < max_loss
 
 
 def test_probability():

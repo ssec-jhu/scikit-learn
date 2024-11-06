@@ -2491,6 +2491,10 @@ class HonestRandomForestClassifier(ForestClassifier):
         Interval(Integral, 1, None, closed="left"),
     ]
 
+    @staticmethod
+    def _generate_sample_indices(tree, random_state, n_samples):
+        return _generate_sample_indices(tree, random_state, n_samples)
+
     def __init__(
         self,
         n_estimators=100,
@@ -2540,7 +2544,8 @@ class HonestRandomForestClassifier(ForestClassifier):
                 target_tree_kwargs=self.target_tree_kwargs,
                 stratify=stratify,
                 honest_prior=honest_prior,
-                honest_fraction=honest_fraction
+                honest_fraction=honest_fraction,
+                random_state=random_state
             ),
             n_estimators=n_estimators,
             estimator_params=(
@@ -2548,7 +2553,8 @@ class HonestRandomForestClassifier(ForestClassifier):
                 "target_tree_kwargs",
                 "stratify",
                 "honest_prior",
-                "honest_fraction"
+                "honest_fraction",
+                "random_state"
             ),
             # estimator_params=(
             #     "criterion",

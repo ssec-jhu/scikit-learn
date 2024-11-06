@@ -342,8 +342,6 @@ class HonestDecisionTree(BaseDecisionTree):
 
 
     def _partition_honest_indices(self, y, sample_weight):
-        rng = np.random.default_rng(self.target_tree.random_state)
-
         # Account for bootstrapping too
         if sample_weight is None:
             structure_weight = np.ones((len(y),), dtype=np.float64)
@@ -353,6 +351,7 @@ class HonestDecisionTree(BaseDecisionTree):
             honest_weight = np.array(sample_weight)
 
         nonzero_indices = np.where(structure_weight > 0)[0]
+
         # sample the structure indices
         if self.stratify:
             ss = StratifiedShuffleSplit(
@@ -362,7 +361,9 @@ class HonestDecisionTree(BaseDecisionTree):
                 np.zeros((len(nonzero_indices), 1)), y[nonzero_indices]
             ):
                 self.structure_indices_ = nonzero_indices[structure_idx]
+
         else:
+            rng = np.random.default_rng(self.random_state)
             self.structure_indices_ = rng.choice(
                 nonzero_indices,
                 int((1 - self.honest_fraction) * len(nonzero_indices)),
