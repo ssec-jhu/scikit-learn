@@ -1,9 +1,38 @@
+# Authors: Gilles Louppe <g.louppe@gmail.com>
+#          Peter Prettenhofer <peter.prettenhofer@gmail.com>
+#          Brian Holt <bdholt1@gmail.com>
+#          Joel Nothman <joel.nothman@gmail.com>
+#          Arnaud Joly <arnaud.v.joly@gmail.com>
+#          Jacob Schreiber <jmschreiber91@gmail.com>
+#          Adam Li <adam2392@gmail.com>
+#          Jong Shin <jshinm@gmail.com>
+#          Samuel Carliles <scarlil1@jhu.edu>
+#
+# License: BSD 3 clause
+# SPDX-License-Identifier: BSD-3-Clause
+
 from ..utils._typedefs cimport float32_t, float64_t, intp_t, int8_t, int32_t, uint32_t
 
 # Constant to switch between algorithm non zero value extract algorithm
 # in SparsePartitioner
 cdef float32_t EXTRACT_NNZ_SWITCH = 0.1
 
+# We introduce a different approach to the fused type for {Dense, Sparse}Partitioner.
+# The main drawback of the fused type approach is that it seemed to require a
+# proliferation of concrete Splitter types in order to accommodate holding ownership
+# of each concrete type of Partitioner, hence the
+# {Best, BestSparse, Random, RandomSparse}Splitter classes. This pattern generalizes
+# to any class wishing to hold a concrete instance of Partitioner, which makes
+# reusing the Partitioner code (as we wish to do for honesty and obliqueness) a
+# fractal class-generating process.
+#
+# The alternative we introduce is the same pattern we use all over the place:
+# function pointers. Assigning method implementations as function pointer values
+# in init allows DensePartitioner and SparsePartitioner to be plain old subclasses
+# of Partitioner, and there is no performance hit from virtual method lookup.
+#
+# Since we also seek to reuse Partitioner as its own module, we break it out into
+# its own files.
 
 # Introduce a fused-class to make it possible to share the split implementation
 # between the dense and sparse cases in the node_split_best and node_split_random

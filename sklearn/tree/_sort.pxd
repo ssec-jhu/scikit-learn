@@ -1,5 +1,21 @@
+# Authors: Gilles Louppe <g.louppe@gmail.com>
+#          Peter Prettenhofer <peter.prettenhofer@gmail.com>
+#          Brian Holt <bdholt1@gmail.com>
+#          Joel Nothman <joel.nothman@gmail.com>
+#          Arnaud Joly <arnaud.v.joly@gmail.com>
+#          Jacob Schreiber <jmschreiber91@gmail.com>
+#          Adam Li <adam2392@gmail.com>
+#          Jong Shin <jshinm@gmail.com>
+#          Samuel Carliles <scarlil1@jhu.edu>
+#
+# License: BSD 3 clause
+# SPDX-License-Identifier: BSD-3-Clause
+
 from ..utils._typedefs cimport float32_t, float64_t, intp_t, int8_t, int32_t, uint32_t
 
+# Since we broke Partitioner out into its own module in order to reuse it, and since
+# both Splitter and Partitioner use these sort functions, we break them out into
+# their own files in order to avoid cyclic file dependency.
 
 # Mitigate precision differences between 32 bit and 64 bit
 cdef float32_t FEATURE_THRESHOLD = 1e-7
