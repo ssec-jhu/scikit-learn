@@ -69,6 +69,9 @@ cdef extern from "<stack>" namespace "std" nogil:
         void push(T&) except +  # Raise c++ exception for bad_alloc -> MemoryError
         T& top()
 
+# A large portion of the tree build function was duplicated almost verbatim in the
+# neurodata fork of sklearn. We refactor that out into its own function, and it's
+# most convenient to encapsulate all the tree build state into its own env struct.
 cdef enum TreeBuildStatus:
     OK = 0
     EXCEPTION_OR_MEMORY_ERROR = -1
@@ -113,6 +116,9 @@ cdef struct BuildEnv:
 
     ParentInfo parent_record
 
+
+# We add tree build events to notify interested parties of tree build state.
+# Only current relevant events are implemented.
 cdef enum TreeBuildEvent:
     ADD_NODE = 1
     UPDATE_NODE = 2
@@ -263,6 +269,7 @@ cdef class TreeBuilder:
 
     cdef unsigned char store_leaf_values    # Whether to store leaf values
 
+    # event broker for distributing tree build events
     cdef EventBroker event_broker
 
 
