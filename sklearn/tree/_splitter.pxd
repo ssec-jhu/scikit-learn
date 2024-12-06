@@ -34,17 +34,14 @@ cdef struct NodeSplitEventData:
     intp_t feature
     float64_t threshold
 
-# NICE IDEAS THAT DON'T APPEAR POSSIBLE
-# - accessing elements of a memory view of cython extension types in a nogil block/function
-# - storing cython extension types in cpp vectors
-#
-# despite the fact that we can access scalar extension type properties in such a context,
-# as for instance node_split_best does with Criterion and Partition,
-# and we can access the elements of a memory view of primitive types in such a context
-#
-# SO WHERE DOES THAT LEAVE US
-# - we can transform these into cpp vectors of structs
-#   and with some minor casting irritations everything else works ok
+# We wish to generalize Splitter so that arbitrary split rejection criteria can be
+# passed in dynamically at construction. The natural way to want to do this is to
+# pass in a list of lambdas, but as we are in cython, this is not so straightforward.
+# We want the convience of being able to pass them in as a python list, and while it
+# would be nice to receive them as a memoryview, this is quite a nuisance with
+# cython extension types, so we do cpp vector instead. We do the same closure struct
+# pattern for execution speed, but they need to be wrapped in cython extension types
+# both for convenience and to go in python list.
 ctypedef void* SplitConditionEnv
 ctypedef bint (*SplitConditionFunction)(
     Splitter splitter,
@@ -79,6 +76,12 @@ cdef struct SplitRecord:
     unsigned char missing_go_to_left  # Controls if missing values go to the left node.
     intp_t n_missing            # Number of missing values for the feature being split on
 
+
+# In the neurodata fork of sklearn there was a hack added where SplitRecords are
+# created which queries splitter for pointer size and does an inline malloc. This
+# is to accommodate the ability to create extended SplitRecord types in Splitter
+# subclasses. We refactor that into a factory method again implemented as a closure
+# struct.
 ctypedef void* SplitRecordFactoryEnv
 ctypedef SplitRecord* (*SplitRecordFactory)(SplitRecordFactoryEnv env) except NULL nogil
 
@@ -168,9 +171,13 @@ cdef class Splitter(BaseSplitter):
     cdef SplitCondition min_weight_leaf_condition
     cdef SplitCondition monotonic_constraint_condition
 
+    # split rejection criteria checked before split selection
     cdef vector[SplitConditionClosure] presplit_conditions
+
+    # split rejection criteria checked after split selection
     cdef vector[SplitConditionClosure] postsplit_conditions
 
+    # event broker for handling splitter events
     cdef EventBroker event_broker
 
     cdef int init(

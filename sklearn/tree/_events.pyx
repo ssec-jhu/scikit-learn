@@ -50,10 +50,6 @@ cdef class EventBroker:
     cdef bint fire_event(self, EventType event_type, EventData event_data) noexcept nogil:
         cdef bint result = True
 
-        #with gil:
-        #    print(f"firing event {event_type}")
-        #    print(f"listeners.size = {self.listeners.size()}")
-
         if event_type < self.listeners.size():
             for l in self.listeners[event_type]:
                 result = result and l.f(event_type, l.e, event_data)
