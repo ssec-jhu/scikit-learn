@@ -82,6 +82,9 @@ cdef class Honesty:
             X, samples, feature_values, missing_values_in_feature_mask
         )
     
+    # The Criterion classes are quite stateful, and since we wish to reuse them
+    # to maintain behavior consistent with them, we have to do some implementational
+    # shenanigans like this.
     def init_criterion(
         self,
         Criterion criterion,
@@ -158,10 +161,6 @@ cdef bint _handle_set_active_parent(
     EventHandlerEnv handler_env,
     EventData event_data
 ) noexcept nogil:
-    #with gil:
-    #    print("")
-    #    print("in _handle_set_active_parent")
-    
     if event_type != TreeBuildEvent.SET_ACTIVE_PARENT:
         return True
     
@@ -178,10 +177,6 @@ cdef bint _handle_set_active_parent(
     node.split_idx = 0
     node.split_value = NAN
 
-    #with gil:
-    #    print(f"data = {data.parent_node_id}")
-    #    print(f"env = {env.tree.size()}")
-
     if data.parent_node_id < 0:
         env.active_parent = NULL
         node.start_idx = 0
@@ -195,19 +190,7 @@ cdef bint _handle_set_active_parent(
             node.start_idx = env.active_parent.split_idx
             node.n = env.active_parent.n - env.active_parent.split_idx
 
-    #with gil:
-    #    print("in _handle_set_active_parent")
-    #    print(f"data = {data.parent_node_id}")
-    #    print(f"env = {env.tree.size()}")
-    #    print(f"active_is_left = {env.active_is_left}")
-    #    print(f"node.start_idx = {node.start_idx}")
-    #    print(f"node.n = {node.n}")
-
     (<Views>env.data_views).partitioner.init_node_split(node.start_idx, node.start_idx + node.n)
-
-    #with gil:
-    #    print("returning")
-    #    print("")
 
     return True
 
@@ -224,10 +207,6 @@ cdef bint _handle_sort_feature(
     EventHandlerEnv handler_env,
     EventData event_data
 ) noexcept nogil:
-    #with gil:
-    #    print("")
-    #    print("in _handle_sort_feature")
-    
     if event_type != NodeSplitEvent.SORT_FEATURE:
         return True
     
@@ -239,20 +218,11 @@ cdef bint _handle_sort_feature(
     node.split_idx = 0
     node.split_value = NAN
 
-    #with gil:
-    #    print(f"data.feature     = {data.feature}")
-    #    print(f"node.feature     = {node.feature}")
-    #    print(f"node.split_idx   = {node.split_idx}")
-    #    print(f"node.split_value = {node.split_value}")
-
     (<Views>env.data_views).partitioner.sort_samples_and_feature_values(node.feature)
 
-    #with gil:
-    #    print("returning")
-    #    print("")
-    
     return True
 
+# When the structure tree sorts by a feature, we must do the same
 cdef class NodeSortFeatureHandler(EventHandler):
     def __cinit__(self, Honesty h):
         self.event_types = np.array([NodeSplitEvent.SORT_FEATURE], dtype=np.int32)
@@ -266,14 +236,8 @@ cdef bint _handle_add_node(
     EventHandlerEnv handler_env,
     EventData event_data
 ) noexcept nogil:
-    #with gil:
-    #    print("_handle_add_node checkpoint 1")
-
     if event_type != TreeBuildEvent.ADD_NODE:
         return True
-
-    #with gil:
-        #print("_handle_add_node checkpoint 2")
 
     cdef HonestEnv* env = <HonestEnv*>handler_env
     cdef const float32_t[:, :] X = (<Views>env.data_views).X
@@ -284,35 +248,14 @@ cdef bint _handle_add_node(
     cdef Interval *interval = NULL
     cdef Interval *parent = NULL
 
-    #with gil:
-        #    print("_handle_add_node checkpoint 3")
-
     if data.node_id >= size:
-        #with gil:
-        #    print("resizing")
-        #    print(f"node_id = {data.node_id}")
-        #    print(f"old tree.size = {env.tree.size()}")
         # as a heuristic, assume a complete tree and add a level
         h = floor(fmax(0, log2(size)))
         env.tree.resize(size + <intp_t>pow(2, h + 1))
 
-        #with gil:
-        #    print(f"h = {h}")
-        #    print(f"log2(size) = {log2(size)}")
-        #    print(f"new size = {size + <intp_t>pow(2, h + 1)}")
-        #    print(f"new tree.size = {env.tree.size()}")
-
-    #with gil:
-    #    print("_handle_add_node checkpoint 4")
-    #    print(f"node_id = {data.node_id}")
-    #    print(f"tree.size = {env.tree.size()}")
-
     interval = &(env.tree[data.node_id])
     interval.feature = data.feature
     interval.split_value = data.split_point
-
-    #with gil:
-    #    print("_handle_add_node checkpoint 5")
 
     if data.parent_node_id < 0:
         # the node being added is the tree root
@@ -328,33 +271,21 @@ cdef bint _handle_add_node(
             interval.start_idx = parent.split_idx
             interval.n = parent.n - (parent.split_idx - parent.start_idx)
 
-    #with gil:
-    #    print("_handle_add_node checkpoint 6")
-
-    # *we* don't need to sort to find the split pos we'll need for partitioning,
-    # but the partitioner internals are so stateful we had better just do it
-    # to ensure that it's in the expected state
+    # We also reuse Partitioner. *We* don't need to sort to find the split pos we'll
+    # need for partitioning, but the partitioner internals are so stateful we had
+    # better just do it to ensure that it's in the expected state
     (<Views>env.data_views).partitioner.init_node_split(interval.start_idx, interval.start_idx + interval.n)
     (<Views>env.data_views).partitioner.sort_samples_and_feature_values(interval.feature)
-
-    #with gil:
-    #    print("_handle_add_node checkpoint 7")
 
     # count n_left to find split pos
     n_left = 0
     i = interval.start_idx
     feature_value = X[samples[i], interval.feature]
 
-    #with gil:
-    #    print("_handle_add_node checkpoint 8")
-
     while (not isnan(feature_value)) and feature_value < interval.split_value and i < interval.start_idx + interval.n:
         n_left += 1
         i += 1
         feature_value = X[samples[i], interval.feature]
-
-    #with gil:
-    #    print("_handle_add_node checkpoint 9")
 
     interval.split_idx = interval.start_idx + n_left
 
@@ -363,26 +294,6 @@ cdef bint _handle_add_node(
         )
     
     env.node_count += 1
-
-    #with gil:
-    #    #print("_handle_add_node checkpoint 10")
-    #    print("")
-    #    print(f"parent_node_id = {data.parent_node_id}")
-    #    print(f"node_id = {data.node_id}")
-    #    print(f"is_leaf = {data.is_leaf}")
-    #    print(f"is_left = {data.is_left}")
-    #    print(f"feature = {data.feature}")
-    #    print(f"split_point = {data.split_point}")
-    #    print("---")
-    #    print(f"start_idx = {interval.start_idx}")
-    #    if parent is not NULL:
-    #        print(f"parent.start_idx = {parent.start_idx}")
-    #        print(f"parent.split_idx = {parent.split_idx}")
-    #        print(f"parent.n = {parent.n}")
-    #    print(f"n = {interval.n}")
-    #    print(f"feature = {interval.feature}")
-    #    print(f"split_idx = {interval.split_idx}")
-    #    print(f"split_value = {interval.split_value}")
 
 
 cdef class AddNodeHandler(EventHandler):
@@ -404,9 +315,6 @@ cdef bint _trivial_condition(
     float64_t upper_bound,
     SplitConditionEnv split_condition_env
 ) noexcept nogil:
-    #with gil:
-    #    print("TrivialCondition called")
-    
     return True
 
 cdef class TrivialCondition(SplitCondition):
@@ -448,34 +356,16 @@ cdef bint _honest_min_sample_leaf_condition(
         n_left = node.split_idx - node.start_idx
         n_right = end_non_missing - node.split_idx + n_missing
 
-    #with gil:
-    #    print("")
-    #    print("in _honest_min_sample_leaf_condition")
-    #    print(f"min_samples_leaf = {min_samples_leaf}")
-    #    print(f"feature = {node.feature}")
-    #    print(f"start_idx = {node.start_idx}")
-    #    print(f"split_idx = {node.split_idx}")
-    #    print(f"n = {node.n}")
-    #    print(f"n_missing = {n_missing}")
-    #    print(f"end_non_missing = {end_non_missing}")
-    #    print(f"n_left = {n_left}")
-    #    print(f"n_right = {n_right}")
-    #    print(f"split_value = {split_value}")
-    #    if node.split_idx > 0:
-    #        print(f"X.feature_value left = {(<Views>env.honest_env.data_views).X[(<Views>env.honest_env.data_views).samples[node.split_idx - 1], node.feature]}")
-    #    print(f"X.feature_value right = {(<Views>env.honest_env.data_views).X[(<Views>env.honest_env.data_views).samples[node.split_idx], node.feature]}")
-
     # Reject if min_samples_leaf is not guaranteed
     if n_left < min_samples_leaf or n_right < min_samples_leaf:
         #with gil:
         #    print("returning False")
         return False
 
-    #with gil:
-    #    print("returning True")
-    
     return True
 
+# Check that the honest set will have sufficient samples on each side of this
+# candidate split.
 cdef class HonestMinSamplesLeafCondition(SplitCondition):
     def __cinit__(self, Honesty h, intp_t min_samples):
         self._env.min_samples = min_samples
