@@ -1,4 +1,17 @@
+# Authors: Haoyin Xu <haoyinxu@gmail.com>
+#          Samuel Carliles <scarlil1@jhu.edu>
+#
 # Adopted from: https://github.com/neurodata/honest-forests
+
+# An honest classification tree implemented by inheriting BaseDecisionTree and
+# including the honesty module. The general idea is that:
+#
+# 1. The interface looks mostly like a regular DecisionTree, and we inherit as
+#    much of the implementation as we can.
+# 2. Rather than actually being our own tree however, we have a target tree for
+#    learning the structure which is just a regular DecisionTree trained on the
+#    structure sample, and an honesty instance which grows the shadow tree described
+#    in the honesty module.
 
 import numpy as np
 from numpy import float32 as DTYPE
@@ -19,7 +32,7 @@ from ._tree import DOUBLE, Tree
 import inspect
 
 
-# note to self: max_n_classes is the maximum number of classes observed
+# note: max_n_classes is the maximum number of classes observed
 # in any response variable dimension
 class HonestDecisionTree(BaseDecisionTree):
     _parameter_constraints: dict = {
@@ -55,6 +68,9 @@ class HonestDecisionTree(BaseDecisionTree):
         if target_tree_class is not None:
             HonestDecisionTree._target_tree_hack(self, target_tree_class, **target_tree_kwargs)
     
+    # In order to inherit behavior from BaseDecisionTree, we must satisfy a lot of
+    # pythonic introspective attribute assumptions. This was the lowest effort way
+    # that came to mind.
     @staticmethod
     def _target_tree_hack(honest_tree, target_tree_class, **kwargs):
         honest_tree.target_tree_class = target_tree_class
@@ -154,21 +170,6 @@ class HonestDecisionTree(BaseDecisionTree):
             target_bta.sample_weight
         )
 
-        # # compute the honest sample indices
-        # structure_mask = np.ones(len(target_bta.y), dtype=bool)
-        # structure_mask[self.honest_indices_] = False
-
-        # if target_bta.sample_weight is None:
-        #     sample_weight_leaves = np.ones((len(target_bta.y),), dtype=np.float64)
-        # else:
-        #     sample_weight_leaves = np.array(target_bta.sample_weight)
-        # sample_weight_leaves[structure_mask] = 0
-
-        # # determine the honest indices using the sample weight
-        # nonzero_indices = np.where(sample_weight_leaves > 0)[0]
-        # # sample the structure indices
-        # self.honest_indices_ = nonzero_indices
-
         # create honesty, set up listeners in target tree
         self.honesty = Honesty(
             target_bta.X,
@@ -200,6 +201,7 @@ class HonestDecisionTree(BaseDecisionTree):
                 check_input=check_input
             )
 
+        # more pythonic introspection minutiae
         setattr(
             self,
             "classes_",
@@ -219,9 +221,9 @@ class HonestDecisionTree(BaseDecisionTree):
 
             weighted_n_samples += sample_weights_honest[i]
 
+        # more pythonic introspection minutiae
         # fingers crossed sklearn.utils.validation.check_is_fitted doesn't
         # change its behavior
-        #print(f"n_classes = {target_bta.n_classes}")
         self.tree_ = HonestTree(
             self.target_tree.n_features_in_,
             target_bta.n_classes,
@@ -231,9 +233,7 @@ class HonestDecisionTree(BaseDecisionTree):
         self.honesty.resize_tree(self.tree_, self.honesty.get_node_count())
         self.tree_.node_count = self.honesty.get_node_count()
 
-        #print(f"dishonest node count = {self.target_tree.tree_.node_count}")
-        #print(f"honest node count = {self.tree_.node_count}")
-
+        # Criterion is very stateful, so do all the instantiation and initialization
         criterion = BaseDecisionTree._create_criterion(
             self.target_tree,
             n_outputs=target_bta.y.shape[1],
@@ -250,8 +250,6 @@ class HonestDecisionTree(BaseDecisionTree):
 
         for i in range(self.honesty.get_node_count()):
             start, end = self.honesty.get_node_range(i)
-            #print(f"setting sample range for node {i}: ({start}, {end})")
-            #print(f"node {i} is leaf: {self.honesty.is_leaf(i)}")
             self.honesty.set_sample_pointers(criterion, start, end)
 
             if missing_values_in_feature_mask is not None:
@@ -262,6 +260,7 @@ class HonestDecisionTree(BaseDecisionTree):
             if self.honesty.is_leaf(i):
                 self.honesty.node_samples(self.tree_, criterion, i)
 
+        # more pythonic introspection minutiae
         setattr(
             self,
             "__sklearn_is_fitted__",
