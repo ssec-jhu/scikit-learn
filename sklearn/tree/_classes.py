@@ -455,6 +455,10 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
         )
 
 
+    # The existing implementation of _fit was almost nothing but data prep and
+    # state initialization, followed by a call to _build_tree. This made it
+    # impossible to tweak _fit ever so slightly without duplicating a lot of
+    # code. So we've modularized it a bit.
     def _fit(
         self,
         X,
@@ -473,6 +477,11 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
             classes=classes
         )
 
+        # Criterion can't be created until we do the class distribution analysis
+        # in _prep_data, so we have to create it here, and best to do it as a
+        # factory which can be overridden if necessary. This used to be in
+        # _build_tree, but that is the wrong place to commit to a particular
+        # implementation; it should be passed in as a parameter.
         criterion = BaseDecisionTree._create_criterion(
             self,
             n_outputs=bta.y.shape[1],
@@ -558,20 +567,6 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
             Random seed.
         """
         n_samples = X.shape[0]
-
-        # Build tree
-        # criterion = self.criterion
-        # if not isinstance(criterion, BaseCriterion):
-        #     if is_classifier(self):
-        #         criterion = CRITERIA_CLF[self.criterion](
-        #             self.n_outputs_, self.n_classes_
-        #         )
-        #     else:
-        #         criterion = CRITERIA_REG[self.criterion](self.n_outputs_, n_samples)
-        # else:
-        #     # Make a deepcopy in case the criterion has mutable attributes that
-        #     # might be shared and modified concurrently during parallel fitting
-        #     criterion = copy.deepcopy(criterion)
 
         SPLITTERS = SPARSE_SPLITTERS if issparse(X) else DENSE_SPLITTERS
 
