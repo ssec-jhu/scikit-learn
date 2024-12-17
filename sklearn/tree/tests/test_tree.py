@@ -198,6 +198,28 @@ DATASETS = {
 }
 
 
+def _moving_avg_cov(n_dim, rho):
+    # Create a meshgrid of indices
+    i, j = np.meshgrid(np.arange(1, n_dim + 1), np.arange(1, n_dim + 1), indexing="ij")
+
+    # Calculate the covariance matrix using the corrected formula
+    cov_matrix = rho ** np.abs(i - j)
+
+    # Apply the banding condition
+    cov_matrix[abs(i - j) > 1] = 0
+    return cov_matrix
+
+
+def _autoregressive_cov(n_dim, rho):
+    # Create a meshgrid of indices
+    i, j = np.meshgrid(np.arange(1, n_dim + 1), np.arange(1, n_dim + 1), indexing="ij")
+
+    # Calculate the covariance matrix using the corrected formula
+    cov_matrix = rho ** np.abs(i - j)
+
+    return cov_matrix
+
+
 def make_trunk_classification(
     n_samples,
     n_dim,
