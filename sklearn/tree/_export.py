@@ -4,6 +4,7 @@ This module defines export functions for decision trees.
 
 # Authors: The scikit-learn developers
 # SPDX-License-Identifier: BSD-3-Clause
+
 from collections.abc import Iterable
 from io import StringIO
 from numbers import Integral
@@ -265,7 +266,12 @@ class _BaseTreeExporter:
             self.colors["rgb"] = _color_brew(tree.n_classes[0])
             if tree.n_outputs != 1:
                 # Find max and min impurities for multi-output
-                self.colors["bounds"] = (np.min(-tree.impurity), np.max(-tree.impurity))
+                # The next line uses -max(impurity) instead of min(-impurity)
+                # and -min(impurity) instead of max(-impurity) on purpose, in
+                # order to avoid what looks like an issue with SIMD on non
+                # memory aligned arrays on 32bit OS. For more details see
+                # https://github.com/scikit-learn/scikit-learn/issues/27506.
+                self.colors["bounds"] = (-np.max(tree.impurity), -np.min(tree.impurity))
             elif tree.n_classes[0] == 1 and len(np.unique(tree.value)) != 1:
                 # Find max and min values in leaf nodes for regression
                 self.colors["bounds"] = (np.min(tree.value), np.max(tree.value))
@@ -308,6 +314,7 @@ class _BaseTreeExporter:
             # Always write node decision criteria, except for leaves
             if self.feature_names is not None:
                 feature = self.feature_names[tree.feature[node_id]]
+                feature = self.str_escape(feature)
             else:
                 feature = "x%s%s%s" % (
                     characters[1],
@@ -383,6 +390,7 @@ class _BaseTreeExporter:
                 node_string += "class = "
             if self.class_names is not True:
                 class_name = self.class_names[np.argmax(value)]
+                class_name = self.str_escape(class_name)
             else:
                 class_name = "y%s%s%s" % (
                     characters[1],
@@ -396,6 +404,9 @@ class _BaseTreeExporter:
             node_string = node_string[: -len(characters[4])]
 
         return node_string + characters[5]
+
+    def str_escape(self, string):
+        return string
 
 
 class _DOTTreeExporter(_BaseTreeExporter):
@@ -570,6 +581,10 @@ class _DOTTreeExporter(_BaseTreeExporter):
             if parent is not None:
                 # Add edge to parent
                 self.out_file.write("%d -> %d ;\n" % (parent, node_id))
+
+    def str_escape(self, string):
+        # override default escaping for graphviz
+        return string.replace('"', r"\"")
 
 
 class _MPLTreeExporter(_BaseTreeExporter):
