@@ -55,7 +55,7 @@ cdef class DensePartitioner(Partitioner):
         const float32_t[:, :] X,
         intp_t[::1] samples,
         float32_t[::1] feature_values,
-        const unsigned char[::1] missing_values_in_feature_mask,
+        const uint8_t[::1] missing_values_in_feature_mask,
     ):
         self.X = X
         self.samples = samples
@@ -93,7 +93,7 @@ cdef inline void dense_sort_samples_and_feature_values(
         const float32_t[:, :] X = (<DensePartitioner>self).X
         intp_t[::1] samples = self.samples
         intp_t n_missing = 0
-        const unsigned char[::1] missing_values_in_feature_mask = self.missing_values_in_feature_mask
+        const uint8_t[::1] missing_values_in_feature_mask = self.missing_values_in_feature_mask
 
     # Sort samples along that feature; by
     # copying the values into an array and
@@ -273,7 +273,7 @@ cdef class SparsePartitioner:
         intp_t[::1] samples,
         intp_t n_samples,
         float32_t[::1] feature_values,
-        const unsigned char[::1] missing_values_in_feature_mask,
+        const uint8_t[::1] missing_values_in_feature_mask,
     ):
         if not (issparse(X) and X.format == "csc"):
             raise ValueError("X should be in csc format")

@@ -11,7 +11,7 @@
 # License: BSD 3 clause
 # SPDX-License-Identifier: BSD-3-Clause
 
-from ..utils._typedefs cimport float32_t, float64_t, intp_t, int8_t, int32_t, uint32_t
+from ..utils._typedefs cimport float32_t, float64_t, intp_t, int8_t, uint8_t, int32_t, uint32_t
 
 # Constant to switch between algorithm non zero value extract algorithm
 # in SparsePartitioner
@@ -83,7 +83,7 @@ cdef class Partitioner:
         intp_t start
         intp_t end
         intp_t n_missing
-        const unsigned char[::1] missing_values_in_feature_mask
+        const uint8_t[::1] missing_values_in_feature_mask
 
         inline void init_node_split(self, intp_t start, intp_t end) noexcept nogil
         inline void sort_samples_and_feature_values(

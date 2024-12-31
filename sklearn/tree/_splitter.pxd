@@ -18,7 +18,7 @@ from ._partitioner cimport Partitioner, DensePartitioner, SparsePartitioner
 from ._criterion cimport BaseCriterion, Criterion
 from ._tree cimport ParentInfo
 
-from ..utils._typedefs cimport float32_t, float64_t, intp_t, int8_t, int32_t, uint32_t
+from ..utils._typedefs cimport float32_t, float64_t, intp_t, int8_t, uint8_t, int32_t, uint32_t
 
 from ._events cimport EventBroker, EventHandler, NullHandler
 
@@ -73,7 +73,9 @@ cdef struct SplitRecord:
     float64_t improvement     # Impurity improvement given parent node.
     float64_t impurity_left   # Impurity of the left split.
     float64_t impurity_right  # Impurity of the right split.
-    unsigned char missing_go_to_left  # Controls if missing values go to the left node.
+    float64_t lower_bound     # Lower bound on value of both children for monotonicity
+    float64_t upper_bound     # Upper bound on value of both children for monotonicity
+    uint8_t missing_go_to_left  # Controls if missing values go to the left node.
     intp_t n_missing            # Number of missing values for the feature being split on
 
 
@@ -185,7 +187,7 @@ cdef class Splitter(BaseSplitter):
         object X,
         const float64_t[:, ::1] y,
         const float64_t[:] sample_weight,
-        const unsigned char[::1] missing_values_in_feature_mask,
+        const uint8_t[::1] missing_values_in_feature_mask,
     ) except -1
 
     cdef void node_samples(self, vector[vector[float64_t]]& dest) noexcept nogil
